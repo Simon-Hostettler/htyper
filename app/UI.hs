@@ -5,6 +5,7 @@ import Brick.Main
 import Brick.Types
 import Brick.Util
 import Brick.Widgets.Border
+import Brick.Widgets.Center
 import Brick.Widgets.Core
 import Brick.Widgets.Edit (handleEditorEvent)
 import Cursor.Simple.List.NonEmpty
@@ -16,7 +17,6 @@ import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
 import System.Directory
 import System.Exit
-import TypingTest
 
 ui :: IO ()
 ui = do
@@ -72,16 +72,18 @@ buildInitialState = do
 drawUI :: TestState -> [Widget Name]
 drawUI ts =
   let cur = text ts
-   in [ border $
-          vBox $
-            map hBox $
-              chunksOf 10 $
-                concat
-                  [ map drawWord $ reverse $ nonEmptyCursorPrev cur,
-                    [drawWord (nonEmptyCursorCurrent cur)],
-                    map drawWord $ nonEmptyCursorNext cur
-                  ]
+   in [ borderWithLabel (str "htyper") $
+          hCenter $
+            vCenter $
+              vBox $
+                map (hBox . map drawWord) (getActiveLines 3 15 cur)
       ]
+
+getActiveLines :: Int -> Int -> NonEmptyCursor a -> [[a]]
+getActiveLines numlines linelen cur = do
+  let firstLine = cursorPosition cur `div` linelen
+  let lines = chunksOf linelen (NE.toList (rebuildNonEmptyCursor cur))
+  take numlines (drop firstLine lines)
 
 drawWord :: TestWord -> Widget n
 drawWord w =
