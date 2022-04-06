@@ -75,15 +75,23 @@ drawUI ts =
    in [ borderWithLabel (str "htyper") $
           hCenter $
             vCenter $
-              vBox $
-                map (hBox . map drawWord) (getActiveLines 3 15 cur)
+              showCursor () (Location (getActiveCharLoc 15 cur, 0)) $
+                vBox $
+                  map (hBox . map drawWord) (getActiveLines 3 15 cur)
       ]
 
-getActiveLines :: Int -> Int -> NonEmptyCursor a -> [[a]]
+getActiveCharLoc :: Int -> NonEmptyCursor TestWord -> Int
+getActiveCharLoc linelen cur = do
+  let activeLineNum = cursorPosition cur `div` linelen
+  let activeLine = chunksOf linelen (NE.toList (rebuildNonEmptyCursor cur)) !! max 0 activeLineNum
+  let posInLine = sum (map ((+ 1) . length . word) (take (cursorPosition cur `mod` linelen) activeLine))
+  posInLine + length (input (nonEmptyCursorCurrent cur))
+
+getActiveLines :: Int -> Int -> NonEmptyCursor TestWord -> [[TestWord]]
 getActiveLines numlines linelen cur = do
-  let firstLine = cursorPosition cur `div` linelen
+  let activeLineNum = cursorPosition cur `div` linelen
   let lines = chunksOf linelen (NE.toList (rebuildNonEmptyCursor cur))
-  take numlines (drop firstLine lines)
+  take numlines (drop activeLineNum lines)
 
 drawWord :: TestWord -> Widget n
 drawWord w =
