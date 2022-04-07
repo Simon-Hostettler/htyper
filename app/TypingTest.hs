@@ -31,11 +31,11 @@ data TestEvent = TestEvent
     correct :: Bool
   }
 
-buildInitialState :: Int -> IO TestState
-buildInitialState num_words = do
+buildInitialState :: Int -> Int -> IO TestState
+buildInitialState most_common num_words = do
   file <- readFile "lang/1000us.txt"
   rng <- newStdGen
-  let word_list = words file
+  let word_list = take most_common (words file)
   let sampled_words = take num_words (shuffle' word_list (length word_list) rng)
   let test_words = map (\s -> TestWord {word = s, input = ""}) sampled_words
   case NE.nonEmpty test_words of
@@ -99,7 +99,6 @@ handleTextInput s c =
         Nothing -> continue $ s {done = True}
         Just cursor' -> liftIO (addTestEvent True (s {text = cursor'})) >>= continue
     _ -> do
-      let tstamp = getCurrentTime
       let cursor = text s
       let cur_word = nonEmptyCursorCurrent cursor
       let new_word = TestWord {word = word cur_word, input = input cur_word ++ [c]}

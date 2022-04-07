@@ -22,14 +22,18 @@ import System.Random (newStdGen)
 import System.Random.Shuffle (shuffle')
 import TypingTest
 
---constant values
+--number of words to type
 num_words = 30
 
+--number of words to display per line
 line_length = 10
+
+--number of most common words to pick from, max 1000
+most_common = 200
 
 ui :: IO ()
 ui = do
-  initialState <- buildInitialState num_words
+  initialState <- buildInitialState most_common num_words
   endState <- defaultMain htyper initialState
   print ""
 
@@ -117,7 +121,7 @@ handleInputEvent s i =
       case vtye of
         EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
         EvKey (KChar 'q') [MCtrl] -> halt s
-        EvKey (KChar 'r') [MCtrl] -> liftIO (buildInitialState num_words) >>= continue
+        EvKey (KChar 'r') [MCtrl] -> liftIO (buildInitialState most_common num_words) >>= continue
         EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
     _ -> continue s
