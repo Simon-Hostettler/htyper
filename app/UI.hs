@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use camelCase" #-}
 module UI where
 
 import Brick.AttrMap
@@ -8,20 +11,27 @@ import Brick.Widgets.Border
 import Brick.Widgets.Center
 import Brick.Widgets.Core
 import Brick.Widgets.Edit (handleEditorEvent)
+import Control.Monad.IO.Class
 import Cursor.Simple.List.NonEmpty
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
+import Data.Time.Clock
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
 import System.Random (newStdGen)
 import System.Random.Shuffle (shuffle')
 import TypingTest
 
+--constant values
+num_words = 30
+
+line_length = 10
+
 ui :: IO ()
 ui = do
-  initialState <- buildInitialState 50
+  initialState <- buildInitialState num_words
   endState <- defaultMain htyper initialState
-  print endState
+  print ""
 
 data Input
   = Input
@@ -29,10 +39,10 @@ data Input
 
 type Name = ()
 
---some constants
-sel = attrName "selected"
+--constant Attribute names
+selected = attrName "selected"
 
-cor = attrName "correct"
+corr = attrName "correct"
 
 wrong = attrName "wrong"
 
@@ -45,31 +55,53 @@ htyper =
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(sel, fg red), (cor, fg white), (wrong, fg red), (norm, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(selected, fg red), (corr, fg white), (wrong, fg red), (norm, fg brightBlack)]
     }
+
+round2Places :: Double -> Double
+round2Places d = fromIntegral (round $ d * 1e2) / 1e2
 
 drawUI :: TestState -> [Widget Name]
 drawUI ts =
-  let cur = text ts
-   in [ borderWithLabel (str "htyper") $
-          hCenter $
-            vCenter $
-              showCursor () (Location (getActiveCharLoc 15 cur, 0)) $
-                vBox $
-                  map (hBox . map drawWord) (getActiveLines 3 15 cur)
-      ]
+  if done ts
+    then do
+      let (wpm, raw_wpm) = getWPM ts
+      [ borderWithLabel (str "results") $
+          vBox $
+            [ vCenter $
+                hCenter $
+                  vBox $
+                    map
+                      str
+                      [ "average wpm: " ++ show (round2Places wpm),
+                        "raw wpm: " ++ show (round2Places raw_wpm),
+                        "accuracy: " ++ show (round2Places (getAccuracy ts)) ++ "%"
+                      ],
+              hCenter $ str "quit: CTRL-q, restart: CTRL-r"
+            ]
+        ]
+    else
+      ( let cur = text ts
+         in [ borderWithLabel (str "htyper") $
+                hCenter $
+                  vCenter $
+                    showCursor () (Location (getActiveCharLoc line_length cur, getActiveLineLoc line_length cur)) $
+                      vBox $
+                        map (hBox . map drawWord) (getActiveLines 3 line_length cur)
+            ]
+      )
 
 drawWord :: TestWord -> Widget n
 drawWord w =
   case input w of
-    "" -> withAttr norm (str (word w ++ " "))
-    _ -> hBox $ map drawChar (zipWithPad ' ' ' ' (word w) (input w)) ++ [withAttr norm (str " ")]
+    "" -> hBox [withAttr norm (str (word w)), withAttr corr (str " ")]
+    _ -> hBox $ map drawChar (zipWithPad ' ' ' ' (word w) (input w)) ++ [withAttr corr (str " ")]
 
 drawChar :: (Char, Char) -> Widget n
 drawChar (c1, c2)
   | c1 == ' ' = withAttr wrong (str [c2])
   | c2 == ' ' = withAttr norm (str [c1])
-  | c1 == c2 = withAttr cor (str [c1])
+  | c1 == c2 = withAttr corr (str [c1])
   | c1 /= c2 = withAttr wrong (str [c2])
   | otherwise = str [' ']
 
@@ -83,8 +115,9 @@ handleInputEvent s i =
   case i of
     VtyEvent vtye ->
       case vtye of
-        EvKey KBS [] -> handleBackSpaceInput s
+        EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
         EvKey (KChar 'q') [MCtrl] -> halt s
-        EvKey (KChar c) [] -> handleTextInput s c
+        EvKey (KChar 'r') [MCtrl] -> liftIO (buildInitialState num_words) >>= continue
+        EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
     _ -> continue s
