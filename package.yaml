@@ -26,6 +26,8 @@ dependencies:
   - directory
   - cursor
   - split
+  - random
+  - random-shuffle
 library:
   source-dirs: src
 
