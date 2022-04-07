@@ -1,17 +1,14 @@
 module TypingTest where
 
-import Brick.Main
-import Brick.Types
-import Brick.Widgets.Edit (handleEditorEvent)
-import Control.Monad.IO.Class
+import Brick.Main (continue)
+import Brick.Types (EventM, Next)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
-import qualified Data.Bifunctor
-import Data.List
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
-import Data.List.Split
-import Data.Time.Clock
-import System.Exit
+import Data.List.Split (chunksOf)
+import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
+import System.Exit (die)
 import System.Random (newStdGen)
 import System.Random.Shuffle (shuffle')
 

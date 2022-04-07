@@ -3,23 +3,18 @@
 {-# HLINT ignore "Use camelCase" #-}
 module UI where
 
-import Brick.AttrMap
+import Brick.AttrMap (attrMap, attrName)
 import Brick.Main
 import Brick.Types
-import Brick.Util
-import Brick.Widgets.Border
-import Brick.Widgets.Center
+import Brick.Util (fg)
+import Brick.Widgets.Border (borderWithLabel)
+import Brick.Widgets.Center (hCenter, vCenter)
 import Brick.Widgets.Core
 import Brick.Widgets.Edit (handleEditorEvent)
-import Control.Monad.IO.Class
-import Cursor.Simple.List.NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.List.NonEmpty as NE
-import Data.Time.Clock
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
-import System.Random (newStdGen)
-import System.Random.Shuffle (shuffle')
 import TypingTest
 
 --number of words to type
@@ -44,13 +39,13 @@ data Input
 type Name = ()
 
 --constant Attribute names
-selected = attrName "selected"
+standard = attrName "standard"
 
 corr = attrName "correct"
 
 wrong = attrName "wrong"
 
-norm = attrName "normal"
+unfilled = attrName "normal"
 
 htyper :: App TestState Input Name
 htyper =
@@ -59,7 +54,7 @@ htyper =
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(selected, fg red), (corr, fg white), (wrong, fg red), (norm, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg blue), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
 round2Places :: Double -> Double
@@ -97,13 +92,13 @@ drawUI ts =
 drawWord :: TestWord -> Widget n
 drawWord w =
   case input w of
-    "" -> hBox [withAttr norm (str (word w)), withAttr corr (str " ")]
-    _ -> hBox $ map drawChar (zipWithPad ' ' ' ' (word w) (input w)) ++ [withAttr corr (str " ")]
+    "" -> hBox [withAttr unfilled (str (word w)), withAttr standard (str " ")]
+    _ -> hBox $ map drawChar (zipWithPad ' ' ' ' (word w) (input w)) ++ [withAttr standard (str " ")]
 
 drawChar :: (Char, Char) -> Widget n
 drawChar (c1, c2)
   | c1 == ' ' = withAttr wrong (str [c2])
-  | c2 == ' ' = withAttr norm (str [c1])
+  | c2 == ' ' = withAttr unfilled (str [c1])
   | c1 == c2 = withAttr corr (str [c1])
   | c1 /= c2 = withAttr wrong (str [c2])
   | otherwise = str [' ']
