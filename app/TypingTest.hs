@@ -42,53 +42,26 @@ buildInitialState most_common num_words = do
     Nothing -> die "No words in file"
     Just ne -> pure TestState {text = makeNonEmptyCursor ne, tevents = [], done = False}
 
-cursorPosition :: NonEmptyCursor a -> Int
-cursorPosition cursor = length (nonEmptyCursorPrev cursor)
+getWPM :: TestState -> Double
+getWPM s = (amountCorrectInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
 
-getWPM :: TestState -> (Double, Double)
-getWPM s = do
-  let startTime = timestamp (last (tevents s))
-  let stopTime = timestamp (head (tevents s))
-  let time_in_sec = realToFrac (diffUTCTime stopTime startTime)
-  let (cor_inputs, wrong_inputs) = amountCorrWrongInputs s
-  ( (fromIntegral cor_inputs / 5.0) / (time_in_sec / 60.0),
-    (fromIntegral (cor_inputs + wrong_inputs) / 5.0) / (time_in_sec / 60.0)
-    )
+getRawWPM :: TestState -> Double
+getRawWPM s = (amountInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
 
 getAccuracy :: TestState -> Double
-getAccuracy s = do
-  let (cor_inputs, wrong_inputs) = Data.Bifunctor.bimap fromIntegral fromIntegral (amountCorrWrongInputs s)
-  100.0 * (cor_inputs / (cor_inputs + wrong_inputs))
-
-amountCorrWrongInputs :: TestState -> (Int, Int)
-amountCorrWrongInputs s = (length (filter correct inputs), length (filter (not . correct) inputs))
-  where
-    inputs = tevents s
+getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
 getActiveLineLoc :: Int -> NonEmptyCursor a -> Int
 getActiveLineLoc line_len cursor = if cursorPosition cursor + 1 > line_len then 1 else 0
 
 getActiveCharLoc :: Int -> NonEmptyCursor TestWord -> Int
-getActiveCharLoc line_len cursor = do
-  let active_line_num = cursorPosition cursor `div` line_len
-  let active_line = chunksOf line_len (NE.toList (rebuildNonEmptyCursor cursor)) !! active_line_num
-  let posInLine = sum (map ((+ 1) . length . word) (take (cursorPosition cursor `mod` line_len) active_line))
-  posInLine + length (input (nonEmptyCursorCurrent cursor))
+getActiveCharLoc line_len cursor =
+  getLineLength (take (getCursorLocInLine line_len cursor) (getActiveLine line_len cursor))
+    + length (input (nonEmptyCursorCurrent cursor))
 
 getActiveLines :: Int -> Int -> NonEmptyCursor TestWord -> [[TestWord]]
-getActiveLines num_lines line_len cursor = do
-  let active_line_num = cursorPosition cursor `div` line_len
-  let lines = chunksOf line_len (NE.toList (rebuildNonEmptyCursor cursor))
-  take num_lines (drop (active_line_num - 1) lines)
-
-isInputCorrect :: TestWord -> Char -> Bool
-isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
-
-addTestEvent :: Bool -> TestState -> IO TestState
-addTestEvent b s = do
-  cur_time <- getCurrentTime
-  let test_event = TestEvent {timestamp = cur_time, correct = b}
-  return s {tevents = test_event : tevents s}
+getActiveLines num_lines line_len cursor =
+  take num_lines (drop (activeLineNum line_len cursor - 1) (getLines line_len cursor))
 
 handleTextInput :: TestState -> Char -> EventM n (Next TestState)
 handleTextInput s c =
@@ -129,3 +102,47 @@ handleBackSpaceInput s = do
           case makeNonEmptyCursorWithSelection (cursorPosition cursor) ne of
             Nothing -> continue s
             Just ne' -> continue $ s {text = ne'}
+
+--Internal Helper Functions, not supposed to be called from outside
+
+cursorPosition :: NonEmptyCursor a -> Int
+cursorPosition cursor = length (nonEmptyCursorPrev cursor)
+
+diffInSeconds :: (UTCTime, UTCTime) -> Double
+diffInSeconds (t1, t2) = abs (realToFrac (diffUTCTime t2 t1))
+
+getStartEndTime :: TestState -> (UTCTime, UTCTime)
+getStartEndTime s = (timestamp (last (tevents s)), timestamp (head (tevents s)))
+
+amountCorrectInputs :: TestState -> Double
+amountCorrectInputs s = fromIntegral (length (filter correct (tevents s)))
+
+amountWrongInputs :: TestState -> Double
+amountWrongInputs s = fromIntegral (length (filter (not . correct) (tevents s)))
+
+amountInputs :: TestState -> Double
+amountInputs s = fromIntegral (length (tevents s))
+
+activeLineNum :: Int -> NonEmptyCursor TestWord -> Int
+activeLineNum line_len cursor = cursorPosition cursor `div` line_len
+
+getLines :: Int -> NonEmptyCursor TestWord -> [[TestWord]]
+getLines line_len cursor = chunksOf line_len (NE.toList (rebuildNonEmptyCursor cursor))
+
+getActiveLine :: Int -> NonEmptyCursor TestWord -> [TestWord]
+getActiveLine line_len cursor = getLines line_len cursor !! activeLineNum line_len cursor
+
+getLineLength :: [TestWord] -> Int
+getLineLength twords = sum (map ((+ 1) . length . word) twords)
+
+getCursorLocInLine :: Int -> NonEmptyCursor TestWord -> Int
+getCursorLocInLine line_len cursor = cursorPosition cursor `mod` line_len
+
+isInputCorrect :: TestWord -> Char -> Bool
+isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
+
+addTestEvent :: Bool -> TestState -> IO TestState
+addTestEvent b s = do
+  cur_time <- getCurrentTime
+  let test_event = TestEvent {timestamp = cur_time, correct = b}
+  return s {tevents = test_event : tevents s}

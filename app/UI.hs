@@ -69,7 +69,6 @@ drawUI :: TestState -> [Widget Name]
 drawUI ts =
   if done ts
     then do
-      let (wpm, raw_wpm) = getWPM ts
       [ borderWithLabel (str "results") $
           vBox $
             [ vCenter $
@@ -77,8 +76,8 @@ drawUI ts =
                   vBox $
                     map
                       str
-                      [ "average wpm: " ++ show (round2Places wpm),
-                        "raw wpm: " ++ show (round2Places raw_wpm),
+                      [ "average wpm: " ++ show (round2Places (getWPM ts)),
+                        "average raw wpm: " ++ show (round2Places (getRawWPM ts)),
                         "accuracy: " ++ show (round2Places (getAccuracy ts)) ++ "%"
                       ],
               hCenter $ str "quit: CTRL-q, restart: CTRL-r"
