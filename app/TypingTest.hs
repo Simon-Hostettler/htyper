@@ -17,10 +17,17 @@ data TestState = TestState
   { text :: NonEmptyCursor TestWord,
     tevents :: [TestEvent],
     linelength :: Int,
-    done :: Bool
+    done :: Bool,
+    args :: Arguments
   }
 
-data Mode = Quote | Random
+data Arguments = Arguments
+  { mode :: Mode,
+    llen :: LineLength,
+    numwords :: Int
+  }
+
+data Mode = Quote | Random deriving (Eq)
 
 data TestWord = TestWord
   { word :: String,
@@ -40,14 +47,15 @@ type Col = Int
 type LineLength = Int
 
 buildInitialState :: Mode -> FilePath -> LineLength -> Int -> Int -> IO TestState
-buildInitialState mode file line_len most_common num_words =
+buildInitialState mode file line_len most_common num_words = do
+  let args = Arguments {mode = mode, llen = line_len, numwords = num_words}
   case mode of
     Quote -> do
       test_words <- getRandomQuote file
-      toTestState test_words line_len
+      toTestState args test_words line_len
     Random -> do
       test_words <- getRandomWords file most_common num_words
-      toTestState test_words line_len
+      toTestState args test_words line_len
 
 getWPM :: TestState -> Double
 getWPM s = (amountCorrectInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
@@ -162,11 +170,11 @@ toTestWord s =
       input = ""
     }
 
-toTestState :: [TestWord] -> LineLength -> IO TestState
-toTestState twords line_len =
+toTestState :: Arguments -> [TestWord] -> LineLength -> IO TestState
+toTestState args twords line_len =
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
-    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], done = False, linelength = line_len}
+    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], done = False, linelength = line_len, args = args}
 
 getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]
 getRandomWords file most_common num_words = do

@@ -14,22 +14,9 @@ import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
 import TypingTest
 
---number of words to type
-num_words = 30
-
---number of words to display per line
-line_length = 10
-
---number of most common words to pick from, max 1000
-most_common = 200
-
-mode = Quote
-
-word_file = "textfiles/quotes.txt"
-
-ui :: IO ()
-ui = do
-  initialState <- buildInitialState mode word_file line_length most_common num_words
+ui :: Mode -> FilePath -> LineLength -> Int -> IO ()
+ui mode word_file line_length num_words = do
+  initialState <- buildInitialState mode word_file line_length 200 num_words
   endState <- defaultMain htyper initialState
   return ()
 
@@ -108,10 +95,19 @@ handleInputEvent s i =
       case vtye of
         EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
         EvKey (KChar 'q') [MCtrl] -> halt s
-        EvKey (KChar 'r') [MCtrl] -> liftIO (buildInitialState mode word_file line_length most_common num_words) >>= continue
+        EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
         EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
     _ -> continue s
+
+rebuildInitialState :: TestState -> IO TestState
+rebuildInitialState s =
+  buildInitialState
+    (mode (args s))
+    (if mode (args s) == Quote then "textfiles/quotes.txt" else "textfiles/1000us.txt")
+    (llen (args s))
+    200
+    (numwords (args s))
 
 round2Places :: Double -> Double
 round2Places d = fromIntegral (round $ d * 1e2) / 1e2
