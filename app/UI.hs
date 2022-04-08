@@ -42,6 +42,7 @@ htyper =
       appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg magenta), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
+--draws either the typing test or the results depending on state
 drawUI :: TestState -> [Widget Name]
 drawUI s =
   if done s then drawResultScreen s else drawTestScreen s
@@ -81,6 +82,7 @@ drawWord w =
     "" -> hBox [withAttr unfilled (str (word w)), withAttr standard (str " ")]
     _ -> hBox $ map drawChar (zipWithPad ' ' (word w) (input w)) ++ [withAttr standard (str " ")]
 
+--draws and colors a char, who's color depends on whether the input and word match
 drawChar :: (Char, Char) -> Widget n
 drawChar (c1, c2)
   | c1 == ' ' = withAttr wrong (str [c2])
@@ -89,6 +91,7 @@ drawChar (c1, c2)
   | c1 /= c2 = withAttr wrong (str [c2])
   | otherwise = str [' ']
 
+-- Ctrl-q exits htyper, Ctrl-r reloads htyper, any other input is handled by the test
 handleInputEvent :: TestState -> BrickEvent n e -> EventM n (Next TestState)
 handleInputEvent s i =
   case i of
@@ -101,12 +104,14 @@ handleInputEvent s i =
         _ -> continue s
     _ -> continue s
 
+--resets the state of the test
 rebuildInitialState :: TestState -> IO TestState
 rebuildInitialState s = buildInitialState (args s) 200
 
 round2Places :: Double -> Double
 round2Places d = fromIntegral (round $ d * 1e2) / 1e2
 
+--zipWith that extends the shorter String with the given char
 zipWithPad :: Char -> String -> String -> [(Char, Char)]
 zipWithPad c (x : xs) (y : ys) = (x, y) : zipWithPad c xs ys
 zipWithPad c [] ys = zip (repeat c) ys
