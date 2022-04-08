@@ -25,8 +25,15 @@ data TestWord = TestWord
 
 data TestEvent = TestEvent
   { timestamp :: UTCTime,
-    correct :: Bool
+    correct :: Bool,
+    input_char :: Char
   }
+
+type Row = Int
+
+type Col = Int
+
+type LineLength = Int
 
 buildInitialState :: Int -> Int -> IO TestState
 buildInitialState most_common num_words = do
@@ -48,15 +55,15 @@ getRawWPM s = (amountInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0
 getAccuracy :: TestState -> Double
 getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
-getActiveLineLoc :: Int -> NonEmptyCursor a -> Int
+getActiveLineLoc :: LineLength -> NonEmptyCursor a -> Row
 getActiveLineLoc line_len cursor = if cursorPosition cursor + 1 > line_len then 1 else 0
 
-getActiveCharLoc :: Int -> NonEmptyCursor TestWord -> Int
+getActiveCharLoc :: LineLength -> NonEmptyCursor TestWord -> Col
 getActiveCharLoc line_len cursor =
   getLineLength (take (getCursorLocInLine line_len cursor) (getActiveLine line_len cursor))
     + length (input (nonEmptyCursorCurrent cursor))
 
-getActiveLines :: Int -> Int -> NonEmptyCursor TestWord -> [[TestWord]]
+getActiveLines :: Int -> LineLength -> NonEmptyCursor TestWord -> [[TestWord]]
 getActiveLines num_lines line_len cursor =
   take num_lines (drop (activeLineNum line_len cursor - 1) (getLines line_len cursor))
 
@@ -64,13 +71,10 @@ handleTextInput :: TestState -> Char -> EventM n (Next TestState)
 handleTextInput s c =
   case c of
     ' ' -> do
-      let cursor = text s
       case nonEmptyCursorSelectNext cursor of
         Nothing -> continue $ s {done = True}
-        Just cursor' -> liftIO (addTestEvent True (s {text = cursor'})) >>= continue
+        Just cursor' -> liftIO (addTestEvent True ' ' (s {text = cursor'})) >>= continue
     _ -> do
-      let cursor = text s
-      let cur_word = nonEmptyCursorCurrent cursor
       let new_word = TestWord {word = word cur_word, input = input cur_word ++ [c]}
       let new_text = reverse (nonEmptyCursorPrev cursor) ++ [new_word] ++ nonEmptyCursorNext cursor
       case NE.nonEmpty new_text of
@@ -79,12 +83,13 @@ handleTextInput s c =
           case makeNonEmptyCursorWithSelection (cursorPosition cursor) ne of
             Nothing -> continue s
             Just ne' -> do
-              liftIO (addTestEvent (isInputCorrect cur_word c) (s {text = ne'})) >>= continue
+              liftIO (addTestEvent (isInputCorrect cur_word c) c (s {text = ne'})) >>= continue
+  where
+    cursor = text s
+    cur_word = nonEmptyCursorCurrent cursor
 
 handleBackSpaceInput :: TestState -> EventM n (Next TestState)
 handleBackSpaceInput s = do
-  let cursor = text s
-  let cur_word = nonEmptyCursorCurrent cursor
   case input cur_word of
     "" -> do
       case nonEmptyCursorSelectPrev cursor of
@@ -99,6 +104,9 @@ handleBackSpaceInput s = do
           case makeNonEmptyCursorWithSelection (cursorPosition cursor) ne of
             Nothing -> continue s
             Just ne' -> continue $ s {text = ne'}
+  where
+    cursor = text s
+    cur_word = nonEmptyCursorCurrent cursor
 
 --Internal Helper Functions, not supposed to be called from outside
 
@@ -120,26 +128,26 @@ amountWrongInputs s = fromIntegral (length (filter (not . correct) (tevents s)))
 amountInputs :: TestState -> Double
 amountInputs s = fromIntegral (length (tevents s))
 
-activeLineNum :: Int -> NonEmptyCursor TestWord -> Int
+activeLineNum :: LineLength -> NonEmptyCursor TestWord -> Int
 activeLineNum line_len cursor = cursorPosition cursor `div` line_len
 
-getLines :: Int -> NonEmptyCursor TestWord -> [[TestWord]]
+getLines :: LineLength -> NonEmptyCursor TestWord -> [[TestWord]]
 getLines line_len cursor = chunksOf line_len (NE.toList (rebuildNonEmptyCursor cursor))
 
-getActiveLine :: Int -> NonEmptyCursor TestWord -> [TestWord]
+getActiveLine :: LineLength -> NonEmptyCursor TestWord -> [TestWord]
 getActiveLine line_len cursor = getLines line_len cursor !! activeLineNum line_len cursor
 
-getLineLength :: [TestWord] -> Int
+getLineLength :: [TestWord] -> LineLength
 getLineLength twords = sum (map ((+ 1) . length . word) twords)
 
-getCursorLocInLine :: Int -> NonEmptyCursor TestWord -> Int
+getCursorLocInLine :: LineLength -> NonEmptyCursor TestWord -> Int
 getCursorLocInLine line_len cursor = cursorPosition cursor `mod` line_len
 
 isInputCorrect :: TestWord -> Char -> Bool
 isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
 
-addTestEvent :: Bool -> TestState -> IO TestState
-addTestEvent b s = do
+addTestEvent :: Bool -> Char -> TestState -> IO TestState
+addTestEvent b c s = do
   cur_time <- getCurrentTime
-  let test_event = TestEvent {timestamp = cur_time, correct = b}
+  let test_event = TestEvent {timestamp = cur_time, correct = b, input_char = c}
   return s {tevents = test_event : tevents s}

@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use camelCase" #-}
 module UI where
 
 import Brick.AttrMap (attrMap, attrName)
@@ -30,13 +27,7 @@ ui :: IO ()
 ui = do
   initialState <- buildInitialState most_common num_words
   endState <- defaultMain htyper initialState
-  print ""
-
-data Input
-  = Input
-  deriving (Show, Eq)
-
-type Name = ()
+  return ()
 
 --constant Attribute names
 standard = attrName "standard"
@@ -47,47 +38,50 @@ wrong = attrName "wrong"
 
 unfilled = attrName "normal"
 
-htyper :: App TestState Input Name
+type Name = ()
+
+htyper :: App TestState () Name
 htyper =
   App
     { appDraw = drawUI,
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg blue), (wrong, fg red), (unfilled, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg magenta), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
-round2Places :: Double -> Double
-round2Places d = fromIntegral (round $ d * 1e2) / 1e2
-
 drawUI :: TestState -> [Widget Name]
-drawUI ts =
-  if done ts
-    then do
-      [ borderWithLabel (str "results") $
-          vBox $
-            [ vCenter $
-                hCenter $
-                  vBox $
-                    map
-                      str
-                      [ "average wpm: " ++ show (round2Places (getWPM ts)),
-                        "average raw wpm: " ++ show (round2Places (getRawWPM ts)),
-                        "accuracy: " ++ show (round2Places (getAccuracy ts)) ++ "%"
-                      ],
-              hCenter $ str "quit: CTRL-q, restart: CTRL-r"
-            ]
+drawUI s =
+  if done s then drawResultScreen s else drawTestScreen s
+
+drawResultScreen :: TestState -> [Widget Name]
+drawResultScreen s =
+  [ borderWithLabel (str "results") $
+      vBox
+        [ vCenter $
+            hCenter $
+              vBox $
+                map
+                  str
+                  [ "average wpm: " ++ show (round2Places (getWPM s)),
+                    "average raw wpm: " ++ show (round2Places (getRawWPM s)),
+                    "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%"
+                  ],
+          hCenter $ str "quit: CTRL-q, restart: CTRL-r"
         ]
-    else
-      ( let cur = text ts
-         in [ borderWithLabel (str "htyper") $
-                hCenter $
-                  vCenter $
-                    showCursor () (Location (getActiveCharLoc line_length cur, getActiveLineLoc line_length cur)) $
-                      vBox $
-                        map (hBox . map drawWord) (getActiveLines 3 line_length cur)
-            ]
-      )
+  ]
+
+drawTestScreen :: TestState -> [Widget Name]
+drawTestScreen s =
+  [ borderWithLabel (str "htyper") $
+      hCenter $
+        vCenter $
+          showCursor () (Location (getActiveCharLoc line_length cursor, getActiveLineLoc line_length cursor)) $
+            vBox $
+              map (hBox . map drawWord) (getActiveLines 3 line_length cursor)
+  ]
+  where
+    cursor = text s
 
 drawWord :: TestWord -> Widget n
 drawWord w =
@@ -103,11 +97,6 @@ drawChar (c1, c2)
   | c1 /= c2 = withAttr wrong (str [c2])
   | otherwise = str [' ']
 
-zipWithPad :: a -> b -> [a] -> [b] -> [(a, b)]
-zipWithPad a b (x : xs) (y : ys) = (x, y) : zipWithPad a b xs ys
-zipWithPad a _ [] ys = zip (repeat a) ys
-zipWithPad _ b xs [] = zip xs (repeat b)
-
 handleInputEvent :: TestState -> BrickEvent n e -> EventM n (Next TestState)
 handleInputEvent s i =
   case i of
@@ -119,3 +108,11 @@ handleInputEvent s i =
         EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
     _ -> continue s
+
+round2Places :: Double -> Double
+round2Places d = fromIntegral (round $ d * 1e2) / 1e2
+
+zipWithPad :: a -> b -> [a] -> [b] -> [(a, b)]
+zipWithPad a b (x : xs) (y : ys) = (x, y) : zipWithPad a b xs ys
+zipWithPad a _ [] ys = zip (repeat a) ys
+zipWithPad _ b xs [] = zip xs (repeat b)
