@@ -15,9 +15,9 @@ import Graphics.Vty.Input.Events
 import Paths_htyper (getDataDir, getDataFileName)
 import TypingTest
 
-ui :: Mode -> FilePath -> LineLength -> Int -> IO ()
-ui mode word_file line_length num_words = do
-  initialState <- buildInitialState mode word_file line_length 200 num_words
+ui :: Arguments -> IO ()
+ui args = do
+  initialState <- buildInitialState args 200
   endState <- defaultMain htyper initialState
   return ()
 
@@ -102,17 +102,7 @@ handleInputEvent s i =
     _ -> continue s
 
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s = do
-  file <- getTextFile (mode (args s))
-  buildInitialState
-    (mode (args s))
-    file
-    (llen (args s))
-    200
-    (numwords (args s))
-
-getTextFile :: Mode -> IO FilePath
-getTextFile mode = if mode == Quote then getDataFileName "1000us.txt" else getDataFileName "quotes.txt"
+rebuildInitialState s = buildInitialState (args s) 200
 
 round2Places :: Double -> Double
 round2Places d = fromIntegral (round $ d * 1e2) / 1e2

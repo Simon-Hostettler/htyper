@@ -9,6 +9,7 @@ import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
+import Paths_htyper (getDataFileName)
 import System.Exit (die)
 import System.Random (newStdGen)
 import System.Random.Shuffle (shuffle')
@@ -46,16 +47,16 @@ type Col = Int
 
 type LineLength = Int
 
-buildInitialState :: Mode -> FilePath -> LineLength -> Int -> Int -> IO TestState
-buildInitialState mode file line_len most_common num_words = do
-  let args = Arguments {mode = mode, llen = line_len, numwords = num_words}
-  case mode of
+buildInitialState :: Arguments -> Int -> IO TestState
+buildInitialState args most_common = do
+  case mode args of
     Quote -> do
-      test_words <- getRandomQuote file
-      toTestState args test_words line_len
+      test_words <- getTextFile (mode args) >>= getRandomQuote
+      toTestState args test_words (llen args)
     Random -> do
-      test_words <- getRandomWords file most_common num_words
-      toTestState args test_words line_len
+      file <- getTextFile (mode args)
+      test_words <- getRandomWords file most_common (numwords args)
+      toTestState args test_words (llen args)
 
 getWPM :: TestState -> Double
 getWPM s = (amountCorrectInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
@@ -191,3 +192,6 @@ getRandomQuote file = do
   let quotes = splitOn "^_^" quotefile
   let rand_quote = head (shuffle' quotes (length quotes) rng)
   return (map toTestWord (words rand_quote))
+
+getTextFile :: Mode -> IO FilePath
+getTextFile mode = if mode == Random then getDataFileName "1000us.txt" else getDataFileName "quotes.txt"
