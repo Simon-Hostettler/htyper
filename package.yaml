@@ -29,6 +29,7 @@ dependencies:
   - random
   - random-shuffle
   - time
+  - optparse-applicative
 library:
   source-dirs: src
 
