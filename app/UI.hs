@@ -87,7 +87,7 @@ drawWord :: TestWord -> Widget n
 drawWord w =
   case input w of
     "" -> hBox [withAttr unfilled (str (word w)), withAttr standard (str " ")]
-    _ -> hBox $ map drawChar (zipWithPad ' ' ' ' (word w) (input w)) ++ [withAttr standard (str " ")]
+    _ -> hBox $ map drawChar (zipWithPad ' ' (word w) (input w)) ++ [withAttr standard (str " ")]
 
 drawChar :: (Char, Char) -> Widget n
 drawChar (c1, c2)
@@ -112,7 +112,7 @@ handleInputEvent s i =
 round2Places :: Double -> Double
 round2Places d = fromIntegral (round $ d * 1e2) / 1e2
 
-zipWithPad :: a -> b -> [a] -> [b] -> [(a, b)]
-zipWithPad a b (x : xs) (y : ys) = (x, y) : zipWithPad a b xs ys
-zipWithPad a _ [] ys = zip (repeat a) ys
-zipWithPad _ b xs [] = zip xs (repeat b)
+zipWithPad :: Char -> String -> String -> [(Char, Char)]
+zipWithPad c (x : xs) (y : ys) = (x, y) : zipWithPad c xs ys
+zipWithPad c [] ys = zip (repeat c) ys
+zipWithPad c xs [] = zip xs (repeat c)
