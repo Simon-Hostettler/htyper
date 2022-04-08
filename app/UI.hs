@@ -39,7 +39,7 @@ htyper =
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg magenta), (wrong, fg red), (unfilled, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg (rgbColor 232 131 0)), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
 --draws either the typing test or the results depending on state
