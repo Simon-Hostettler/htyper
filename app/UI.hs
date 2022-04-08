@@ -23,9 +23,13 @@ line_length = 10
 --number of most common words to pick from, max 1000
 most_common = 200
 
+mode = Quote
+
+word_file = "textfiles/quotes.txt"
+
 ui :: IO ()
 ui = do
-  initialState <- buildInitialState most_common num_words
+  initialState <- buildInitialState mode word_file line_length most_common num_words
   endState <- defaultMain htyper initialState
   return ()
 
@@ -76,9 +80,9 @@ drawTestScreen s =
   [ borderWithLabel (str "htyper") $
       hCenter $
         vCenter $
-          showCursor () (Location (getActiveCharLoc line_length cursor, getActiveLineLoc line_length cursor)) $
+          showCursor () (Location (getActiveCharLoc s cursor, getActiveLineLoc s cursor)) $
             vBox $
-              map (hBox . map drawWord) (getActiveLines 3 line_length cursor)
+              map (hBox . map drawWord) (getActiveLines s 3 cursor)
   ]
   where
     cursor = text s
@@ -104,7 +108,7 @@ handleInputEvent s i =
       case vtye of
         EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
         EvKey (KChar 'q') [MCtrl] -> halt s
-        EvKey (KChar 'r') [MCtrl] -> liftIO (buildInitialState most_common num_words) >>= continue
+        EvKey (KChar 'r') [MCtrl] -> liftIO (buildInitialState mode word_file line_length most_common num_words) >>= continue
         EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
     _ -> continue s

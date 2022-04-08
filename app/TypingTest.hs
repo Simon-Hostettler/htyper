@@ -2,11 +2,12 @@ module TypingTest where
 
 import Brick.Main (continue)
 import Brick.Types (EventM, Next)
+import Brick.Widgets.FileBrowser (fileBrowserAttr)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
-import Data.List.Split (chunksOf)
+import Data.List.Split (chunksOf, splitOn)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import System.Exit (die)
 import System.Random (newStdGen)
@@ -15,8 +16,11 @@ import System.Random.Shuffle (shuffle')
 data TestState = TestState
   { text :: NonEmptyCursor TestWord,
     tevents :: [TestEvent],
+    linelength :: Int,
     done :: Bool
   }
+
+data Mode = Quote | Random
 
 data TestWord = TestWord
   { word :: String,
@@ -35,16 +39,15 @@ type Col = Int
 
 type LineLength = Int
 
-buildInitialState :: Int -> Int -> IO TestState
-buildInitialState most_common num_words = do
-  file <- readFile "lang/1000us.txt"
-  rng <- newStdGen
-  let word_list = take most_common (words file)
-  let sampled_words = take num_words (shuffle' word_list (length word_list) rng)
-  let test_words = map (\s -> TestWord {word = s, input = ""}) sampled_words
-  case NE.nonEmpty test_words of
-    Nothing -> die "No words in file"
-    Just ne -> pure TestState {text = makeNonEmptyCursor ne, tevents = [], done = False}
+buildInitialState :: Mode -> FilePath -> LineLength -> Int -> Int -> IO TestState
+buildInitialState mode file line_len most_common num_words =
+  case mode of
+    Quote -> do
+      test_words <- getRandomQuote file
+      toTestState test_words line_len
+    Random -> do
+      test_words <- getRandomWords file most_common num_words
+      toTestState test_words line_len
 
 getWPM :: TestState -> Double
 getWPM s = (amountCorrectInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
@@ -55,17 +58,17 @@ getRawWPM s = (amountInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0
 getAccuracy :: TestState -> Double
 getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
-getActiveLineLoc :: LineLength -> NonEmptyCursor a -> Row
-getActiveLineLoc line_len cursor = if cursorPosition cursor + 1 > line_len then 1 else 0
+getActiveLineLoc :: TestState -> NonEmptyCursor a -> Row
+getActiveLineLoc s cursor = if cursorPosition cursor + 1 > linelength s then 1 else 0
 
-getActiveCharLoc :: LineLength -> NonEmptyCursor TestWord -> Col
-getActiveCharLoc line_len cursor =
-  getLineLength (take (getCursorLocInLine line_len cursor) (getActiveLine line_len cursor))
+getActiveCharLoc :: TestState -> NonEmptyCursor TestWord -> Col
+getActiveCharLoc s cursor =
+  getLineLength (take (getCursorLocInLine s cursor) (getActiveLine s cursor))
     + length (input (nonEmptyCursorCurrent cursor))
 
-getActiveLines :: Int -> LineLength -> NonEmptyCursor TestWord -> [[TestWord]]
-getActiveLines num_lines line_len cursor =
-  take num_lines (drop (activeLineNum line_len cursor - 1) (getLines line_len cursor))
+getActiveLines :: TestState -> Int -> NonEmptyCursor TestWord -> [[TestWord]]
+getActiveLines s num_lines cursor =
+  take num_lines (drop (activeLineNum s cursor - 1) (getLines s cursor))
 
 handleTextInput :: TestState -> Char -> EventM n (Next TestState)
 handleTextInput s c =
@@ -128,20 +131,20 @@ amountWrongInputs s = fromIntegral (length (filter (not . correct) (tevents s)))
 amountInputs :: TestState -> Double
 amountInputs s = fromIntegral (length (tevents s))
 
-activeLineNum :: LineLength -> NonEmptyCursor TestWord -> Int
-activeLineNum line_len cursor = cursorPosition cursor `div` line_len
+activeLineNum :: TestState -> NonEmptyCursor TestWord -> Int
+activeLineNum s cursor = cursorPosition cursor `div` linelength s
 
-getLines :: LineLength -> NonEmptyCursor TestWord -> [[TestWord]]
-getLines line_len cursor = chunksOf line_len (NE.toList (rebuildNonEmptyCursor cursor))
+getLines :: TestState -> NonEmptyCursor TestWord -> [[TestWord]]
+getLines s cursor = chunksOf (linelength s) (NE.toList (rebuildNonEmptyCursor cursor))
 
-getActiveLine :: LineLength -> NonEmptyCursor TestWord -> [TestWord]
-getActiveLine line_len cursor = getLines line_len cursor !! activeLineNum line_len cursor
+getActiveLine :: TestState -> NonEmptyCursor TestWord -> [TestWord]
+getActiveLine s cursor = getLines s cursor !! activeLineNum s cursor
 
 getLineLength :: [TestWord] -> LineLength
 getLineLength twords = sum (map ((+ 1) . length . word) twords)
 
-getCursorLocInLine :: LineLength -> NonEmptyCursor TestWord -> Int
-getCursorLocInLine line_len cursor = cursorPosition cursor `mod` line_len
+getCursorLocInLine :: TestState -> NonEmptyCursor TestWord -> Int
+getCursorLocInLine s cursor = cursorPosition cursor `mod` linelength s
 
 isInputCorrect :: TestWord -> Char -> Bool
 isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
@@ -151,3 +154,32 @@ addTestEvent b c s = do
   cur_time <- getCurrentTime
   let test_event = TestEvent {timestamp = cur_time, correct = b, input_char = c}
   return s {tevents = test_event : tevents s}
+
+toTestWord :: String -> TestWord
+toTestWord s =
+  TestWord
+    { word = s,
+      input = ""
+    }
+
+toTestState :: [TestWord] -> LineLength -> IO TestState
+toTestState twords line_len =
+  case NE.nonEmpty twords of
+    Nothing -> die "No Words to display"
+    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], done = False, linelength = line_len}
+
+getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]
+getRandomWords file most_common num_words = do
+  rng <- newStdGen
+  wordfile <- readFile file
+  let word_list = take most_common (words wordfile)
+  let sampled_words = take num_words (shuffle' word_list (length word_list) rng)
+  return (map toTestWord sampled_words)
+
+getRandomQuote :: FilePath -> IO [TestWord]
+getRandomQuote file = do
+  rng <- newStdGen
+  quotefile <- readFile file
+  let quotes = splitOn "^_^" quotefile
+  let rand_quote = head (shuffle' quotes (length quotes) rng)
+  return (map toTestWord (words rand_quote))
