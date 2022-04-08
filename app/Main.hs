@@ -3,6 +3,7 @@ module Main where
 import Data.Semigroup ((<>))
 import Options.Applicative
 import Options.Applicative.Types (optShowDefault)
+import Paths_htyper (getDataDir, getDataFileName)
 import TypingTest (Mode (Quote, Random))
 import UI (ui)
 
@@ -25,5 +26,9 @@ main = runTest =<< execParser opts
     opts = info (args <**> helper) (fullDesc <> progDesc "A cli-based typing test written in haskell" <> header "htyper")
 
 runTest :: Args -> IO ()
-runTest (Args False llen nwords) = ui Random "textfiles/1000us.txt" llen nwords
-runTest (Args True llen nwords) = ui Quote "textfiles/quotes.txt" llen nwords
+runTest (Args False llen nwords) = do
+  file <- getDataFileName "1000us.txt"
+  ui Random file llen nwords
+runTest (Args True llen nwords) = do
+  file <- getDataFileName "quotes.txt"
+  ui Quote file llen nwords

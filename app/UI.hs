@@ -12,6 +12,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.List.NonEmpty as NE
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
+import Paths_htyper (getDataDir, getDataFileName)
 import TypingTest
 
 ui :: Mode -> FilePath -> LineLength -> Int -> IO ()
@@ -101,13 +102,17 @@ handleInputEvent s i =
     _ -> continue s
 
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s =
+rebuildInitialState s = do
+  file <- getTextFile (mode (args s))
   buildInitialState
     (mode (args s))
-    (if mode (args s) == Quote then "textfiles/quotes.txt" else "textfiles/1000us.txt")
+    file
     (llen (args s))
     200
     (numwords (args s))
+
+getTextFile :: Mode -> IO FilePath
+getTextFile mode = if mode == Quote then getDataFileName "1000us.txt" else getDataFileName "quotes.txt"
 
 round2Places :: Double -> Double
 round2Places d = fromIntegral (round $ d * 1e2) / 1e2

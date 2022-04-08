@@ -33,8 +33,13 @@ dependencies:
 library:
   source-dirs: src
 
+data-dir: textfiles
+data-files:
+  - 1000us.txt
+  - quotes.txt
+
 executables:
-  htyper-exe:
+  htyper:
     main: Main.hs
     source-dirs: app
     ghc-options:
