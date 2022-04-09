@@ -1,4 +1,25 @@
-module TypingTest where
+module TypingTest
+  ( --data
+    TestState (..),
+    TestWord (..),
+    Arguments (..),
+    Mode (..),
+    --state functions
+    buildInitialState,
+    handleTextInput,
+    handleBackSpaceInput,
+    --stat functions
+    getWPM,
+    getRawWPM,
+    getAccuracy,
+    --cursor functions
+    getCursorLoc,
+    getActiveCharLoc,
+    getActiveLineLoc,
+    --other
+    getActiveLines,
+  )
+where
 
 import Brick.Main (continue)
 import Brick.Types (EventM, Next)
@@ -173,7 +194,7 @@ getActiveLine = ap ((!!) . getLines) activeLineNum
 getLengthOfWords :: [TestWord] -> LineLength
 getLengthOfWords = sum . map (\w -> 1 + max (length (input w)) (length (word w)))
 
---amount of words before current word in active line + 1
+--amount of words before current word in active line
 getWordLocInLine :: TestState -> Int
 getWordLocInLine = ap (mod . getWordLocInText . text) (linelen . args)
 
