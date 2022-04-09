@@ -54,10 +54,16 @@ drawResultScreen s =
             hCenter $
               vBox $
                 map
-                  str
+                  (hCenter . str)
                   [ "average wpm: " ++ show (round2Places (getWPM s)),
+                    "\n",
                     "average raw wpm: " ++ show (round2Places (getRawWPM s)),
-                    "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%"
+                    "\n",
+                    "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%",
+                    "\n",
+                    "consistency: " ++ show (round2Places (getConsistency s)) ++ "%",
+                    "\n",
+                    "amount correct/total inputs: " ++ getInputStats s
                   ],
           hCenter $ str "quit: CTRL-q, restart: CTRL-r"
         ]
@@ -65,7 +71,7 @@ drawResultScreen s =
 
 drawTestScreen :: TestState -> [Widget Name]
 drawTestScreen s =
-  [ borderWithLabel (str "λtyper") $
+  [ borderWithLabel (str "htyper") $
       hCenter $
         vCenter $
           showCursor () (Location (getCursorLoc s)) $

@@ -12,6 +12,8 @@ module TypingTest
     getWPM,
     getRawWPM,
     getAccuracy,
+    getConsistency,
+    getInputStats,
     --cursor functions
     getCursorLoc,
     getActiveCharLoc,
@@ -93,6 +95,13 @@ getRawWPM s = (amountInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0
 getAccuracy :: TestState -> Double
 getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
+-- gets the coefficient of variation of raw wpm per word (5 inputs) and normalizes it with a logisitic function
+getConsistency :: TestState -> Double
+getConsistency = (* 100.0) . normalize . coeffOfVariation . rawWpmAvgPerWord
+
+getInputStats :: TestState -> String
+getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (round (amountInputs s) :: Int)
+
 {- cursor location functions -}
 
 --coordinates to place cursor in UI
@@ -160,8 +169,27 @@ handleBackSpaceInput s = do
 
 {- Internal Helper functions -}
 
---number of words before current word
+--normalize value from R to (0, 1) using a logistic function
+normalize :: Double -> Double
+normalize d = 1.0 / (1.0 + exp (3.0 * (d - 0.8)))
 
+coeffOfVariation :: [Double] -> Double
+coeffOfVariation = ap ((/) . stdev) mean
+
+mean :: [Double] -> Double
+mean = ap ((/) . sum) (fromIntegral . length)
+
+stdev :: [Double] -> Double
+stdev v = sqrt (sum (map ((** 2) . (+ (-(mean v)))) v) / fromIntegral (length v - 1))
+
+rawWpmAvgPerWord :: TestState -> [Double]
+rawWpmAvgPerWord = map ((60.0 /) . sum) . chunksOf 5 . diffOfPairs . tevents
+
+--difference in time between each consecutive pair in list
+diffOfPairs :: [TestEvent] -> [Double]
+diffOfPairs l = zipWith (\x y -> diffInSeconds (timestamp x, timestamp y)) l (tail l)
+
+--number of words before current word
 diffInSeconds :: (UTCTime, UTCTime) -> Double
 diffInSeconds = uncurry (((abs . realToFrac) .) . flip diffUTCTime)
 
