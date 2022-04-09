@@ -22,13 +22,12 @@ ui args = do
   return ()
 
 --constant Attribute names
-standard = attrName "standard"
-
-corr = attrName "correct"
-
-wrong = attrName "wrong"
-
-unfilled = attrName "normal"
+(standard, corr, wrong, unfilled) =
+  ( attrName "standard",
+    attrName "correct",
+    attrName "wrong",
+    attrName "unfilled"
+  )
 
 type Name = ()
 
@@ -39,7 +38,7 @@ htyper =
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg (rgbColor 232 131 0)), (wrong, fg red), (unfilled, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg (rgbColor 255 119 35)), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
 --draws either the typing test or the results depending on state
@@ -66,12 +65,12 @@ drawResultScreen s =
 
 drawTestScreen :: TestState -> [Widget Name]
 drawTestScreen s =
-  [ borderWithLabel (str "htyper") $
+  [ borderWithLabel (str "λtyper") $
       hCenter $
         vCenter $
-          showCursor () (Location (getActiveCharLoc s cursor, getActiveLineLoc s cursor)) $
+          showCursor () (Location (getCursorLoc s)) $
             vBox $
-              map (hBox . map drawWord) (getActiveLines s 3 cursor)
+              map (hBox . map drawWord) (getActiveLines s 3)
   ]
   where
     cursor = text s
