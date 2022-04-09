@@ -24,7 +24,7 @@ data TestState = TestState
 
 data Arguments = Arguments
   { mode :: Mode,
-    llen :: LineLength,
+    linelen :: LineLength,
     numwords :: Int
   }
 
@@ -80,7 +80,7 @@ getCursorLoc s = (getActiveCharLoc s, getActiveLineLoc s)
 
 --the row in which the currently edited line is in
 getActiveLineLoc :: TestState -> Row
-getActiveLineLoc s = if getWordLocInText (text s) + 1 > llen (args s) then 1 else 0
+getActiveLineLoc s = if getWordLocInText (text s) + 1 > linelen (args s) then 1 else 0
 
 --the column of the active line in which the currently edited char is in
 getActiveCharLoc :: TestState -> Col
@@ -159,11 +159,11 @@ amountInputs = fromIntegral . length . tevents
 
 --number of lines before the active line
 activeLineNum :: TestState -> Int
-activeLineNum = ap (div . getWordLocInText . text) (llen . args)
+activeLineNum = ap (div . getWordLocInText . text) (linelen . args)
 
 --splits words into lines of linelength
 getLines :: TestState -> [[TestWord]]
-getLines = ap (chunksOf . llen . args) (NE.toList . rebuildNonEmptyCursor . text)
+getLines = ap (chunksOf . linelen . args) (NE.toList . rebuildNonEmptyCursor . text)
 
 --gets words in active line
 getActiveLine :: TestState -> [TestWord]
@@ -175,7 +175,7 @@ getLengthOfWords = sum . map (\w -> 1 + max (length (input w)) (length (word w))
 
 --amount of words before current word in active line + 1
 getWordLocInLine :: TestState -> Int
-getWordLocInLine = ap (mod . getWordLocInText . text) (llen . args)
+getWordLocInLine = ap (mod . getWordLocInText . text) (linelen . args)
 
 getWordLocInText :: NonEmptyCursor a -> Int
 getWordLocInText = length . nonEmptyCursorPrev

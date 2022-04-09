@@ -25,5 +25,5 @@ main = runTest =<< execParser opts
     opts = info (argparse <**> helper) (fullDesc <> progDesc "A cli-based typing test written in haskell" <> header "htyper")
 
 runTest :: Arguments -> IO ()
-runTest (Arguments Random llen numwords) = ui (Arguments {mode = Random, llen = llen, numwords = numwords})
-runTest (Arguments Quote llen numwords) = ui (Arguments {mode = Quote, llen = llen, numwords = numwords})
+runTest (Arguments Random linelen numwords) = ui (Arguments {mode = Random, linelen = linelen, numwords = numwords})
+runTest (Arguments Quote linelen numwords) = ui (Arguments {mode = Quote, linelen = linelen, numwords = numwords})
