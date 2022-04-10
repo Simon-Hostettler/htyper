@@ -169,9 +169,9 @@ handleBackSpaceInput s = do
 
 {- Internal Helper functions -}
 
---normalize value from R to (0, 1) using a logistic function
+--normalize value from R to (0, 1) using an inverse exponential functon
 normalize :: Double -> Double
-normalize d = 1.0 / (1.0 + exp (3.0 * (d - 0.8)))
+normalize = exp . ((-0.9) *)
 
 coeffOfVariation :: [Double] -> Double
 coeffOfVariation = ap ((/) . stdev) mean
