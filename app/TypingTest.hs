@@ -4,6 +4,7 @@ module TypingTest
     TestWord (..),
     Arguments (..),
     Mode (..),
+    CharErrorRate (..),
     --state functions
     buildInitialState,
     handleTextInput,
@@ -14,6 +15,7 @@ module TypingTest
     getAccuracy,
     getConsistency,
     getInputStats,
+    getErrorsPerChar,
     --cursor functions
     getCursorLoc,
     getActiveCharLoc,
@@ -29,6 +31,7 @@ import Brick.Widgets.FileBrowser (fileBrowserAttr)
 import Control.Monad (ap, liftM2)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
+import Data.Char (toLower)
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
@@ -65,6 +68,18 @@ data TestEvent = TestEvent
     correct :: Bool,
     input_char :: Char
   }
+  deriving (Eq)
+
+data CharErrorRate = CharErrorRate
+  { char :: Char,
+    errorRate :: Double
+  }
+
+instance Eq CharErrorRate where
+  (CharErrorRate _ er1) == (CharErrorRate _ er2) = er1 == er2
+
+instance Ord CharErrorRate where
+  (CharErrorRate _ er1) `compare` (CharErrorRate _ er2) = er1 `compare` er2
 
 type Row = Int
 
@@ -107,6 +122,9 @@ getConsistency = (* 100.0) . normalize . coeffOfVariation . rawWpmAvgPerWord
 
 getInputStats :: TestState -> String
 getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (round (amountInputs s) :: Int)
+
+getErrorsPerChar :: TestState -> [CharErrorRate]
+getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
 
 {- cursor location functions -}
 
@@ -237,6 +255,12 @@ getWordLocInText = length . nonEmptyCursorPrev
 
 isInputCorrect :: TestWord -> Char -> Bool
 isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
+
+getTestEventsPerChar :: TestState -> [[TestEvent]]
+getTestEventsPerChar s = filter (/= []) [filter ((== c) . toLower . input_char) (tevents s) | c <- ['a' .. 'z']]
+
+getErrorRate :: [TestEvent] -> Double
+getErrorRate list = fromIntegral (length (filter (not . correct) list)) / fromIntegral (length list)
 
 addTestEvent :: Bool -> Char -> TestState -> IO TestState
 addTestEvent b c s = do

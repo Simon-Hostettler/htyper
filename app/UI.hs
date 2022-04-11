@@ -12,6 +12,7 @@ import Brick.Widgets.Edit (handleEditorEvent)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
+import Data.List (sort)
 import qualified Data.List.NonEmpty as NE
 import Graphics.Vty (defaultConfig, mkVty)
 import Graphics.Vty.Attributes
@@ -65,19 +66,32 @@ drawResultScreen s =
       vBox
         [ vCenter $
             hCenter $
-              vBox $
-                map
-                  (hCenter . str)
-                  [ "average wpm: " ++ show (round2Places (getWPM s)),
-                    "\n",
-                    "average raw wpm: " ++ show (round2Places (getRawWPM s)),
-                    "\n",
-                    "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%",
-                    "\n",
-                    "consistency: " ++ show (round2Places (getConsistency s)) ++ "%",
-                    "\n",
-                    "amount correct/total inputs: " ++ getInputStats s
-                  ],
+              hBox
+                [ borderWithLabel (str "Stats") $
+                    vCenter $
+                      hCenter $
+                        vBox $
+                          map
+                            str
+                            [ "average wpm: " ++ show (round2Places (getWPM s)),
+                              "\n",
+                              "average raw wpm: " ++ show (round2Places (getRawWPM s)),
+                              "\n",
+                              "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%",
+                              "\n",
+                              "consistency: " ++ show (round2Places (getConsistency s)) ++ "%",
+                              "\n",
+                              "correct/total inputs: " ++ getInputStats s
+                            ],
+                  borderWithLabel (str "Worst Keys") $
+                    vCenter $
+                      hCenter $
+                        vBox $
+                          map
+                            (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
+                            (take 5 (reverse (sort (getErrorsPerChar s))))
+                ],
+          borderWithLabel (str "Speed") $ vCenter $ hCenter $ str "TODO",
           hCenter $ str "quit: CTRL-q, restart: CTRL-r"
         ]
   ]
