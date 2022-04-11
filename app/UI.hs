@@ -1,6 +1,7 @@
 module UI where
 
 import Brick.AttrMap (attrMap, attrName)
+import Brick.BChan (newBChan, writeBChan)
 import Brick.Main
 import Brick.Types
 import Brick.Util (fg)
@@ -8,8 +9,11 @@ import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (hCenter, vCenter)
 import Brick.Widgets.Core
 import Brick.Widgets.Edit (handleEditorEvent)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.List.NonEmpty as NE
+import Graphics.Vty (defaultConfig, mkVty)
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
 import Paths_htyper (getDataDir, getDataFileName)
@@ -17,8 +21,15 @@ import TypingTest
 
 ui :: Arguments -> IO ()
 ui args = do
+  chan <- newBChan 10
+  forkIO $
+    forever $ do
+      threadDelay 1000000
+      writeBChan chan Tick
+  let buildVty = mkVty defaultConfig
+  initialVty <- buildVty
   initialState <- buildInitialState args 200
-  endState <- defaultMain htyper initialState
+  endState <- customMain initialVty buildVty (Just chan) htyper initialState
   return ()
 
 --constant Attribute names
@@ -29,9 +40,11 @@ ui args = do
     attrName "unfilled"
   )
 
+data Tick = Tick
+
 type Name = ()
 
-htyper :: App TestState () Name
+htyper :: App TestState Tick Name
 htyper =
   App
     { appDraw = drawUI,
@@ -74,9 +87,12 @@ drawTestScreen s =
   [ borderWithLabel (str "htyper") $
       hCenter $
         vCenter $
-          showCursor () (Location (getCursorLoc s)) $
-            vBox $
-              map (hBox . map drawWord) (getActiveLines s 3)
+          vBox
+            [ if mode (args s) == Timed then str (show (time_left s)) else str "",
+              showCursor () (Location (getCursorLoc s)) $
+                vBox $
+                  map (hBox . map drawWord) (getActiveLines s 3)
+            ]
   ]
   where
     cursor = text s
@@ -97,7 +113,7 @@ drawChar (c1, c2)
   | otherwise = str [' ']
 
 -- Ctrl-q exits htyper, Ctrl-r reloads htyper, any other input is handled by the test
-handleInputEvent :: TestState -> BrickEvent n e -> EventM n (Next TestState)
+handleInputEvent :: TestState -> BrickEvent Name Tick -> EventM n (Next TestState)
 handleInputEvent s i =
   case i of
     VtyEvent vtye ->
@@ -107,6 +123,12 @@ handleInputEvent s i =
         EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
         EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
+    AppEvent Tick -> do
+      if mode (args s) == Timed
+        then case time_left s - 1 of
+          0 -> continue (s {time_left = 0, done = True})
+          x -> continue (s {time_left = x})
+        else continue s
     _ -> continue s
 
 --resets the state of the test

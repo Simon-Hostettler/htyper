@@ -42,16 +42,18 @@ data TestState = TestState
   { text :: NonEmptyCursor TestWord,
     tevents :: [TestEvent],
     done :: Bool,
+    time_left :: Int,
     args :: Arguments
   }
 
 data Arguments = Arguments
   { mode :: Mode,
+    time :: Int,
     linelen :: LineLength,
     numwords :: Int
   }
 
-data Mode = Quote | Random deriving (Eq)
+data Mode = Quote | Random | Timed deriving (Eq)
 
 data TestWord = TestWord
   { word :: String,
@@ -74,11 +76,15 @@ buildInitialState :: Arguments -> Int -> IO TestState
 buildInitialState args most_common = do
   case mode args of
     Quote -> do
-      test_words <- getTextFile (mode args) >>= getRandomQuote
+      test_words <- getTextFile Quote >>= getRandomQuote
       toTestState args test_words
     Random -> do
-      file <- getTextFile (mode args)
+      file <- getTextFile Random
       test_words <- getRandomWords file most_common (numwords args)
+      toTestState args test_words
+    Timed -> do
+      file <- getTextFile Timed
+      test_words <- getRandomWords file most_common most_common
       toTestState args test_words
 
 {-stat functions -}
@@ -245,7 +251,7 @@ toTestState :: Arguments -> [TestWord] -> IO TestState
 toTestState args twords =
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
-    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], done = False, args = args}
+    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], done = False, args = args, time_left = time args}
 
 --shuffles most_common amount of words from a file and returns num_words of them
 getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]
@@ -267,4 +273,4 @@ getRandomQuote file = do
 
 --returns the quote file or the most common words file, depending on the mode of the test
 getTextFile :: Mode -> IO FilePath
-getTextFile mode = if mode == Random then getDataFileName "1000us.txt" else getDataFileName "quotes.txt"
+getTextFile mode = if mode == Quote then getDataFileName "quote.txt" else getDataFileName "1000us.txt"
