@@ -1,6 +1,6 @@
 # htyper
 
-htyper is a typing test for terminals written in Haskell using Brick.
+htyper is a typing test for terminals written in Haskell using Brick. Its functionality was inspired by monkeytype.com
 
 ![recording](resources/htyper.gif)
 
