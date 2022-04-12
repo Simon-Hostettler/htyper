@@ -83,7 +83,7 @@ drawResultScreen s =
           borderWithLabel (str "Speed") $
             vCenter $
               hCenter $
-                drawWpmFunc (snd (dimensions s) - 5, round (0.6 * fromIntegral (fst (dimensions s))) - 5) s,
+                drawWpmFunc (fst (dimensions s) - 5, round (0.6 * fromIntegral (snd (dimensions s))) - 5) s,
           hCenter $ str "quit: CTRL-q, restart: CTRL-r"
         ]
   ]
