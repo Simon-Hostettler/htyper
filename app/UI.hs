@@ -61,7 +61,7 @@ htyper dim =
 --draws either the typing test or the results depending on state
 drawUI :: (Int, Int) -> TestState -> [Widget Name]
 drawUI dim s =
-  if done s then drawResultScreen dim s else [str (show dim)] ++ drawTestScreen s
+  if done s then drawResultScreen dim s else drawTestScreen s
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = do
@@ -149,7 +149,7 @@ drawWpmFunc (cols, rows) s = do
   where
     fI = fromIntegral
     wpm = shrinkToSize cols (map (120.0 /) (diffOfPairs 10 (tevents s)))
-    wpmRange = maximum wpm - minimum wpm
+    wpmRange = 10.0 + maximum wpm - minimum wpm
     pos x = minimum wpm + (wpmRange * fI x / fI rows)
     prefix i x
       | even i && x < 100.0 = str (show (round x) ++ "   ")

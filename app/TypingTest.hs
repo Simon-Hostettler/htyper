@@ -210,7 +210,7 @@ deleteAt id xs = left ++ right
     (left, r : right) = splitAt id xs
 
 shrinkToSize :: Int -> [Double] -> [Double]
-shrinkToSize size list = concat (map init (group n list))
+shrinkToSize size list = if length list < size then list else concat (map init (group n list))
   where
     n = round (1.0 / (1.0 - (1.0 / (fromIntegral (length list) / fromIntegral size))))
 
