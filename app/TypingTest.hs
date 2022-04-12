@@ -49,6 +49,7 @@ data TestState = TestState
   { text :: NonEmptyCursor TestWord,
     tevents :: [TestEvent],
     done :: Bool,
+    dimensions :: (Int, Int),
     time_left :: Int,
     args :: Arguments
   }
@@ -91,20 +92,20 @@ type Col = Int
 
 type LineLength = Int
 
-buildInitialState :: Arguments -> Int -> IO TestState
-buildInitialState args most_common = do
+buildInitialState :: (Int, Int) -> Arguments -> Int -> IO TestState
+buildInitialState dim args most_common = do
   case mode args of
     Quote -> do
       test_words <- getTextFile Quote >>= getRandomQuote
-      toTestState args test_words
+      toTestState dim args test_words
     Random -> do
       file <- getTextFile Random
       test_words <- getRandomWords file most_common (numwords args)
-      toTestState args test_words
+      toTestState dim args test_words
     Timed -> do
       file <- getTextFile Timed
       test_words <- getRandomWords file most_common most_common
-      toTestState args test_words
+      toTestState dim args test_words
 
 {-stat functions -}
 
@@ -276,11 +277,11 @@ addTestEvent b c s = do
 toTestWord :: String -> TestWord
 toTestWord s = TestWord {word = s, input = ""}
 
-toTestState :: Arguments -> [TestWord] -> IO TestState
-toTestState args twords =
+toTestState :: (Int, Int) -> Arguments -> [TestWord] -> IO TestState
+toTestState dim args twords =
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
-    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], done = False, args = args, time_left = time args}
+    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], dimensions = dim, done = False, args = args, time_left = time args}
 
 --shuffles most_common amount of words from a file and returns num_words of them
 getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]

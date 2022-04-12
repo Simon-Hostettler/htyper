@@ -32,8 +32,8 @@ ui args = do
   let buildVty = mkVty defaultConfig
   dim <- getWindowSize
   initialVty <- buildVty
-  initialState <- buildInitialState args 200
-  endState <- customMain initialVty buildVty (Just chan) (htyper dim) initialState
+  initialState <- buildInitialState dim args 200
+  endState <- customMain initialVty buildVty (Just chan) htyper initialState
   return ()
 
 --constant Attribute names
@@ -48,10 +48,10 @@ data Tick = Tick
 
 type Name = ()
 
-htyper :: (Int, Int) -> App TestState Tick Name
-htyper dim =
+htyper :: App TestState Tick Name
+htyper =
   App
-    { appDraw = drawUI dim,
+    { appDraw = drawUI,
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
@@ -59,17 +59,17 @@ htyper dim =
     }
 
 --draws either the typing test or the results depending on state
-drawUI :: (Int, Int) -> TestState -> [Widget Name]
-drawUI dim s =
-  if done s then drawResultScreen dim s else drawTestScreen s
+drawUI :: TestState -> [Widget Name]
+drawUI s =
+  if done s then drawResultScreen s else drawTestScreen s
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = do
   w <- size :: IO (Maybe (Window Int))
   return (maybe 0 width w, maybe 0 height w)
 
-drawResultScreen :: (Int, Int) -> TestState -> [Widget Name]
-drawResultScreen (cols, rows) s =
+drawResultScreen :: TestState -> [Widget Name]
+drawResultScreen s =
   [ borderWithLabel (str "results") $
       vBox
         [ vLimitPercent 40 $
@@ -83,7 +83,7 @@ drawResultScreen (cols, rows) s =
           borderWithLabel (str "Speed") $
             vCenter $
               hCenter $
-                drawWpmFunc (cols - 5, round (0.6 * fromIntegral rows) - 5) s,
+                drawWpmFunc (snd (dimensions s) - 5, round (0.6 * fromIntegral (fst (dimensions s))) - 5) s,
           hCenter $ str "quit: CTRL-q, restart: CTRL-r"
         ]
   ]
@@ -183,16 +183,17 @@ handleInputEvent s i =
         EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
         _ -> continue s
     AppEvent Tick -> do
+      dim <- liftIO getWindowSize
       if mode (args s) == Timed
         then case time_left s - 1 of
-          0 -> continue (s {time_left = 0, done = True})
-          x -> continue (s {time_left = x})
+          0 -> continue (s {time_left = 0, done = True, dimensions = dim})
+          x -> continue (s {time_left = x, dimensions = dim})
         else continue s
     _ -> continue s
 
 --resets the state of the test
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s = buildInitialState (args s) 200
+rebuildInitialState s = buildInitialState (dimensions s) (args s) 200
 
 round2Places :: Double -> Double
 round2Places d = fromIntegral (round $ d * 1e2) / 1e2
