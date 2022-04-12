@@ -16,7 +16,6 @@ module TypingTest
     getConsistency,
     getInputStats,
     getErrorsPerChar,
-    approxWpmFunc,
     --cursor functions
     getCursorLoc,
     getActiveCharLoc,
@@ -130,15 +129,6 @@ getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (ro
 
 getErrorsPerChar :: TestState -> [CharErrorRate]
 getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
-
---approximates the typing speed at a certain timestamp using lagrange interpolation
-approxWpmFunc :: TestState -> Double -> Double
-approxWpmFunc s timepoint =
-  120.0
-    / evalPoly
-      (getLagrangeBasis (diffOfPairs 10 (tevents s)))
-      (map ((abs . realToFrac . diffUTCTime (fst (getStartEndTime s))) . timestamp) (tevents s))
-      timepoint
 
 {- cursor location functions -}
 
@@ -328,14 +318,3 @@ mean = ap ((/) . sum) (fromIntegral . length)
 
 stdev :: [Double] -> Double
 stdev v = sqrt (sum (map ((** 2) . (+ (-(mean v)))) v) / fromIntegral (length v - 1))
-
-evalPoly :: [(Double -> Double)] -> [Double] -> Double -> Double
-evalPoly basis ycoords x = sum (zipWith (*) ycoords (map (\b -> b x) basis))
-
---returns the lagrange basis polys of a list of data points
-getLagrangeBasis :: [Double] -> [(Double -> Double)]
-getLagrangeBasis d = [getLagrangePolynomial d idx | idx <- [0 .. (length d - 1)]]
-
---returns a single lagrange basis polynomial at the specified index
-getLagrangePolynomial :: [Double] -> Int -> (Double -> Double)
-getLagrangePolynomial d idx = \x -> product [(x - xm) / ((d !! idx) - xm) | xm <- (deleteAt idx d)]
