@@ -30,6 +30,7 @@ dependencies:
   - random-shuffle
   - time
   - optparse-applicative
+  - terminal-size
 library:
   source-dirs: src
 
