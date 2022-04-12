@@ -16,12 +16,17 @@ module TypingTest
     getConsistency,
     getInputStats,
     getErrorsPerChar,
+    approxWpmFunc,
     --cursor functions
     getCursorLoc,
     getActiveCharLoc,
     getActiveLineLoc,
     --other
     getActiveLines,
+    diffInSeconds,
+    diffOfPairs,
+    getStartEndTime,
+    shrinkToSize,
   )
 where
 
@@ -126,6 +131,15 @@ getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (ro
 getErrorsPerChar :: TestState -> [CharErrorRate]
 getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
 
+--approximates the typing speed at a certain timestamp using lagrange interpolation
+approxWpmFunc :: TestState -> Double -> Double
+approxWpmFunc s timepoint =
+  120.0
+    / evalPoly
+      (getLagrangeBasis (diffOfPairs 10 (tevents s)))
+      (map ((abs . realToFrac . diffUTCTime (fst (getStartEndTime s))) . timestamp) (tevents s))
+      timepoint
+
 {- cursor location functions -}
 
 --coordinates to place cursor in UI
@@ -193,25 +207,26 @@ handleBackSpaceInput s = do
 
 {- Internal Helper functions -}
 
---normalize value from R to (0, 1) using an inverse exponential functon
-normalize :: Double -> Double
-normalize = exp . ((-0.9) *)
-
-coeffOfVariation :: [Double] -> Double
-coeffOfVariation = ap ((/) . stdev) mean
-
-mean :: [Double] -> Double
-mean = ap ((/) . sum) (fromIntegral . length)
-
-stdev :: [Double] -> Double
-stdev v = sqrt (sum (map ((** 2) . (+ (-(mean v)))) v) / fromIntegral (length v - 1))
-
 rawWpmAvgPerWord :: TestState -> [Double]
-rawWpmAvgPerWord = map ((60.0 /) . sum) . chunksOf 5 . diffOfPairs . tevents
+rawWpmAvgPerWord = map ((60.0 /) . sum) . chunksOf 5 . diffOfPairs 1 . tevents
 
---difference in time between each consecutive pair in list
-diffOfPairs :: [TestEvent] -> [Double]
-diffOfPairs l = zipWith (\x y -> diffInSeconds (timestamp x, timestamp y)) l (tail l)
+--difference in time between shifted pairs in list
+diffOfPairs :: Int -> [TestEvent] -> [Double]
+diffOfPairs shift l = zipWith (\x y -> diffInSeconds (timestamp x, timestamp y)) l (drop shift l)
+
+deleteAt :: Int -> [a] -> [a]
+deleteAt id xs = left ++ right
+  where
+    (left, r : right) = splitAt id xs
+
+shrinkToSize :: Int -> [Double] -> [Double]
+shrinkToSize size list = concat (map init (group n list))
+  where
+    n = round (1.0 / (1.0 - (1.0 / (fromIntegral (length list) / fromIntegral size))))
+
+group :: Int -> [Double] -> [[Double]]
+group n [] = []
+group n xs = take n xs : group n (drop n xs)
 
 --number of words before current word
 diffInSeconds :: (UTCTime, UTCTime) -> Double
@@ -298,3 +313,29 @@ getRandomQuote file = do
 --returns the quote file or the most common words file, depending on the mode of the test
 getTextFile :: Mode -> IO FilePath
 getTextFile mode = if mode == Quote then getDataFileName "quote.txt" else getDataFileName "1000us.txt"
+
+{- Math functions -}
+
+--normalize value from R to (0, 1) using an inverse exponential functon
+normalize :: Double -> Double
+normalize = exp . ((-0.9) *)
+
+coeffOfVariation :: [Double] -> Double
+coeffOfVariation = ap ((/) . stdev) mean
+
+mean :: [Double] -> Double
+mean = ap ((/) . sum) (fromIntegral . length)
+
+stdev :: [Double] -> Double
+stdev v = sqrt (sum (map ((** 2) . (+ (-(mean v)))) v) / fromIntegral (length v - 1))
+
+evalPoly :: [(Double -> Double)] -> [Double] -> Double -> Double
+evalPoly basis ycoords x = sum (zipWith (*) ycoords (map (\b -> b x) basis))
+
+--returns the lagrange basis polys of a list of data points
+getLagrangeBasis :: [Double] -> [(Double -> Double)]
+getLagrangeBasis d = [getLagrangePolynomial d idx | idx <- [0 .. (length d - 1)]]
+
+--returns a single lagrange basis polynomial at the specified index
+getLagrangePolynomial :: [Double] -> Int -> (Double -> Double)
+getLagrangePolynomial d idx = \x -> product [(x - xm) / ((d !! idx) - xm) | xm <- (deleteAt idx d)]

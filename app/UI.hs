@@ -18,6 +18,8 @@ import Graphics.Vty (defaultConfig, mkVty)
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
 import Paths_htyper (getDataDir, getDataFileName)
+import System.Console.Terminal.Size (Window (height, width), size)
+import System.Exit
 import TypingTest
 
 ui :: Arguments -> IO ()
@@ -28,9 +30,10 @@ ui args = do
       threadDelay 1000000
       writeBChan chan Tick
   let buildVty = mkVty defaultConfig
+  dim <- getWindowSize
   initialVty <- buildVty
   initialState <- buildInitialState args 200
-  endState <- customMain initialVty buildVty (Just chan) htyper initialState
+  endState <- customMain initialVty buildVty (Just chan) (htyper dim) initialState
   return ()
 
 --constant Attribute names
@@ -45,10 +48,10 @@ data Tick = Tick
 
 type Name = ()
 
-htyper :: App TestState Tick Name
-htyper =
+htyper :: (Int, Int) -> App TestState Tick Name
+htyper dim =
   App
-    { appDraw = drawUI,
+    { appDraw = drawUI dim,
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
@@ -56,46 +59,65 @@ htyper =
     }
 
 --draws either the typing test or the results depending on state
-drawUI :: TestState -> [Widget Name]
-drawUI s =
-  if done s then drawResultScreen s else drawTestScreen s
+drawUI :: (Int, Int) -> TestState -> [Widget Name]
+drawUI dim s =
+  if done s then drawResultScreen dim s else [str (show dim)] ++ drawTestScreen s
 
-drawResultScreen :: TestState -> [Widget Name]
-drawResultScreen s =
+getWindowSize :: IO (Int, Int)
+getWindowSize = do
+  w <- size :: IO (Maybe (Window Int))
+  return (maybe 0 width w, maybe 0 height w)
+
+drawResultScreen :: (Int, Int) -> TestState -> [Widget Name]
+drawResultScreen (cols, rows) s =
   [ borderWithLabel (str "results") $
       vBox
-        [ vCenter $
-            hCenter $
-              hBox
-                [ borderWithLabel (str "Stats") $
-                    vCenter $
-                      hCenter $
-                        vBox $
-                          map
-                            str
-                            [ "average wpm: " ++ show (round2Places (getWPM s)),
-                              "\n",
-                              "average raw wpm: " ++ show (round2Places (getRawWPM s)),
-                              "\n",
-                              "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%",
-                              "\n",
-                              "consistency: " ++ show (round2Places (getConsistency s)) ++ "%",
-                              "\n",
-                              "correct/total inputs: " ++ getInputStats s
-                            ],
-                  borderWithLabel (str "Worst Keys") $
-                    vCenter $
-                      hCenter $
-                        vBox $
-                          map
-                            (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
-                            (take 5 (reverse (sort (getErrorsPerChar s))))
-                ],
-          borderWithLabel (str "Speed") $ vCenter $ hCenter $ str "TODO",
+        [ vLimitPercent 40 $
+            vCenter $
+              hCenter $
+                hBox
+                  [ drawStats s,
+                    drawKeyInfo s
+                  ],
+          --TODO use Lagrange Interpolation on 10-key rolling average to plot speed
+          borderWithLabel (str "Speed") $
+            vCenter $
+              hCenter $
+                drawWpmFunc (cols - 5, round (0.6 * fromIntegral rows) - 5) s,
           hCenter $ str "quit: CTRL-q, restart: CTRL-r"
         ]
   ]
 
+drawStats :: TestState -> Widget Name
+drawStats s =
+  borderWithLabel (str "Stats") $
+    vCenter $
+      hCenter $
+        vBox $
+          map
+            str
+            [ "average wpm: " ++ show (round2Places (getWPM s)),
+              "\n",
+              "average raw wpm: " ++ show (round2Places (getRawWPM s)),
+              "\n",
+              "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%",
+              "\n",
+              "consistency: " ++ show (round2Places (getConsistency s)) ++ "%",
+              "\n",
+              "correct/total inputs: " ++ getInputStats s
+            ]
+
+drawKeyInfo :: TestState -> Widget Name
+drawKeyInfo s =
+  borderWithLabel (str "Worst Keys") $
+    vCenter $
+      hCenter $
+        vBox $
+          map
+            (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
+            (take 5 (reverse (sort (getErrorsPerChar s))))
+
+-- ⠿
 drawTestScreen :: TestState -> [Widget Name]
 drawTestScreen s =
   [ borderWithLabel (str "htyper") $
@@ -110,6 +132,29 @@ drawTestScreen s =
   ]
   where
     cursor = text s
+
+drawWpmFunc :: (Int, Int) -> TestState -> Widget n
+drawWpmFunc (cols, rows) s = do
+  vBox $
+    reverse $
+      [ hBox $
+          prefix r (pos r) :
+            [ if pos r <= wpm !! c
+                then str "⠿"
+                else str " "
+              | c <- [0 .. length wpm - 2]
+            ]
+        | r <- [0 .. rows]
+      ]
+  where
+    fI = fromIntegral
+    wpm = shrinkToSize cols (map (120.0 /) (diffOfPairs 10 (tevents s)))
+    wpmRange = maximum wpm - minimum wpm
+    pos x = minimum wpm + (wpmRange * fI x / fI rows)
+    prefix i x
+      | even i && x < 100.0 = str (show (round x) ++ "   ")
+      | even i && x >= 100.0 = str (show (round x) ++ "  ")
+      | otherwise = str "     "
 
 drawWord :: TestWord -> Widget n
 drawWord w =
