@@ -16,16 +16,13 @@ module TypingTest
     getConsistency,
     getInputStats,
     getErrorsPerChar,
+    get10KeyRawWpm,
     --cursor functions
     getCursorLoc,
     getActiveCharLoc,
     getActiveLineLoc,
     --other
     getActiveLines,
-    diffInSeconds,
-    diffOfPairs,
-    getStartEndTime,
-    shrinkToSize,
   )
 where
 
@@ -35,7 +32,7 @@ import Brick.Widgets.FileBrowser (fileBrowserAttr)
 import Control.Monad (ap, liftM2)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
-import Data.Char (toLower)
+import Data.Char (GeneralCategory, toLower)
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
@@ -123,13 +120,18 @@ getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
 -- gets the coefficient of variation of raw wpm per word (5 inputs) and normalizes it with a logisitic function
 getConsistency :: TestState -> Double
-getConsistency = (* 100.0) . normalize . coeffOfVariation . rawWpmAvgPerWord
+getConsistency = (* 100.0) . normalize . coeffOfVariation . nKeyRawWpm 5
 
 getInputStats :: TestState -> String
 getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (round (amountInputs s) :: Int)
 
 getErrorsPerChar :: TestState -> [CharErrorRate]
 getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
+
+get10KeyRawWpm :: Int -> TestState -> [Double]
+get10KeyRawWpm cols s = map (getClosestToIndex (zip (nKeyRawWpm 10 s) (getTimePoints s))) [0.0, (0.0 + timespan / fromIntegral cols) .. timespan]
+  where
+    timespan = diffInSeconds (getStartEndTime s)
 
 {- cursor location functions -}
 
@@ -198,28 +200,26 @@ handleBackSpaceInput s = do
 
 {- Internal Helper functions -}
 
-rawWpmAvgPerWord :: TestState -> [Double]
-rawWpmAvgPerWord = map ((60.0 /) . sum) . chunksOf 5 . diffOfPairs 1 . tevents
+-- average raw wpm over n key presses
+nKeyRawWpm :: Int -> TestState -> [Double]
+nKeyRawWpm n = map ((60.0 * (fromIntegral n / 5.0)) /) . diffOfPairs n . tevents
+
+-- returns timestamp in seconds relative to start time for every testinput
+getTimePoints :: TestState -> [Double]
+getTimePoints s = map (\e -> diffInSeconds (timestamp e, fst (getStartEndTime s))) (reverse (tevents s))
 
 --difference in time between shifted pairs in list
 diffOfPairs :: Int -> [TestEvent] -> [Double]
 diffOfPairs shift l = zipWith (\x y -> diffInSeconds (timestamp x, timestamp y)) l (drop shift l)
 
-deleteAt :: Int -> [a] -> [a]
-deleteAt id xs = left ++ right
-  where
-    (left, r : right) = splitAt id xs
+-- takes list of pairs (entry, index) (sorted by index) and an arbitrary index and returns entry closest to that index
+getClosestToIndex :: [(Double, Double)] -> Double -> Double
+getClosestToIndex (x : (y : xs)) idx
+  | snd x <= idx && idx < snd y = fst x
+  | otherwise = getClosestToIndex (y : xs) idx
+getClosestToIndex [(e, i)] _ = e
+getClosestToIndex _ _ = 0
 
-shrinkToSize :: Int -> [Double] -> [Double]
-shrinkToSize size list = if length list < size then list else concat (map init (group n list))
-  where
-    n = round (1.0 / (1.0 - (1.0 / (fromIntegral (length list) / fromIntegral size))))
-
-group :: Int -> [Double] -> [[Double]]
-group n [] = []
-group n xs = take n xs : group n (drop n xs)
-
---number of words before current word
 diffInSeconds :: (UTCTime, UTCTime) -> Double
 diffInSeconds = uncurry (((abs . realToFrac) .) . flip diffUTCTime)
 
@@ -262,9 +262,11 @@ getWordLocInText = length . nonEmptyCursorPrev
 isInputCorrect :: TestWord -> Char -> Bool
 isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
 
+--list of test events that contain specified char
 getTestEventsPerChar :: TestState -> [[TestEvent]]
 getTestEventsPerChar s = filter (/= []) [filter ((== c) . toLower . input_char) (tevents s) | c <- ['a' .. 'z']]
 
+--used by getCharErrorRate, returns incorrect inputs of that char / total inputs of that char
 getErrorRate :: [TestEvent] -> Double
 getErrorRate list = fromIntegral (length (filter (not . correct) list)) / fromIntegral (length list)
 

@@ -70,7 +70,7 @@ getWindowSize = do
 
 drawResultScreen :: TestState -> [Widget Name]
 drawResultScreen s =
-  [ borderWithLabel (str "results") $
+  [ borderWithLabel (str " results ") $
       vBox
         [ vLimitPercent 40 $
             vCenter $
@@ -79,8 +79,7 @@ drawResultScreen s =
                   [ drawStats s,
                     drawKeyInfo s
                   ],
-          --TODO use Lagrange Interpolation on 10-key rolling average to plot speed
-          borderWithLabel (str "Speed") $
+          borderWithLabel (str " wpm over time ") $
             vCenter $
               hCenter $
                 drawWpmFunc (fst (dimensions s) - 5, round (0.6 * fromIntegral (snd (dimensions s))) - 5) s,
@@ -90,7 +89,7 @@ drawResultScreen s =
 
 drawStats :: TestState -> Widget Name
 drawStats s =
-  borderWithLabel (str "Stats") $
+  borderWithLabel (str " stats ") $
     vCenter $
       hCenter $
         vBox $
@@ -109,7 +108,7 @@ drawStats s =
 
 drawKeyInfo :: TestState -> Widget Name
 drawKeyInfo s =
-  borderWithLabel (str "Worst Keys") $
+  borderWithLabel (str " worst keys ") $
     vCenter $
       hCenter $
         vBox $
@@ -117,7 +116,6 @@ drawKeyInfo s =
             (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
             (take 5 (reverse (sort (getErrorsPerChar s))))
 
--- ⠿
 drawTestScreen :: TestState -> [Widget Name]
 drawTestScreen s =
   [ borderWithLabel (str "htyper") $
@@ -136,21 +134,24 @@ drawTestScreen s =
 drawWpmFunc :: (Int, Int) -> TestState -> Widget n
 drawWpmFunc (cols, rows) s = do
   vBox $
-    reverse $
-      [ hBox $
-          prefix r (pos r) :
-            [ if pos r <= wpm !! c
-                then str "⠿"
-                else str " "
-              | c <- [0 .. length wpm - 2]
-            ]
-        | r <- [0 .. rows]
-      ]
+    reverse
+      ( [ hBox $
+            prefix r (pos r) :
+              [ if pos r <= wpmList !! c
+                  then str "⠿"
+                  else str " "
+                | c <- [0 .. length wpmList - 2]
+              ]
+          | r <- [0 .. rows]
+        ]
+      )
   where
     fI = fromIntegral
-    wpm = shrinkToSize cols (map (120.0 /) (diffOfPairs 10 (tevents s)))
-    wpmRange = 10.0 + maximum wpm - minimum wpm
-    pos x = minimum wpm + (wpmRange * fI x / fI rows)
+    wpmList = get10KeyRawWpm cols s
+    maxWpm = maximum wpmList
+    minWpm = minimum wpmList
+    wpmRange = 10.0 + maxWpm - minWpm
+    pos x = minWpm + (wpmRange * fI x / fI rows)
     prefix i x
       | even i && x < 100.0 = str (show (round x) ++ "   ")
       | even i && x >= 100.0 = str (show (round x) ++ "  ")
@@ -188,7 +189,7 @@ handleInputEvent s i =
         then case time_left s - 1 of
           0 -> continue (s {time_left = 0, done = True, dimensions = dim})
           x -> continue (s {time_left = x, dimensions = dim})
-        else continue s
+        else continue (s {dimensions = dim})
     _ -> continue s
 
 --resets the state of the test
