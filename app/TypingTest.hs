@@ -306,7 +306,7 @@ getRandomQuote file = do
 
 --returns the quote file or the most common words file, depending on the mode of the test
 getTextFile :: Mode -> IO FilePath
-getTextFile mode = if mode == Quote then getDataFileName "quote.txt" else getDataFileName "1000us.txt"
+getTextFile mode = if mode == Quote then getDataFileName "quotes.txt" else getDataFileName "1000us.txt"
 
 {- Math functions -}
 
