@@ -55,7 +55,7 @@ htyper =
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg magenta{-(rgbColor 204 81 195)-}), (wrong, fg red), (unfilled, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg magenta {-(rgbColor 204 81 195)-}), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
 --draws either the typing test or the results depending on state
@@ -99,11 +99,9 @@ drawStats s =
               "\n",
               "average raw wpm: " ++ show (round2Places (getRawWPM s)),
               "\n",
-              "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%",
+              "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%" ++ " | " ++ getInputStats s,
               "\n",
-              "consistency: " ++ show (round2Places (getConsistency s)) ++ "%",
-              "\n",
-              "correct/total inputs: " ++ getInputStats s
+              "consistency: " ++ show (round2Places (getConsistency s)) ++ "%"
             ]
 
 drawKeyInfo :: TestState -> Widget Name
