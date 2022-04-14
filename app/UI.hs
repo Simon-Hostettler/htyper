@@ -8,24 +8,20 @@ import Brick.Util (fg)
 import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (hCenter, vCenter)
 import Brick.Widgets.Core
-import Brick.Widgets.Edit (handleEditorEvent)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.List (sort)
-import qualified Data.List.NonEmpty as NE
 import Graphics.Vty (defaultConfig, mkVty)
 import Graphics.Vty.Attributes
 import Graphics.Vty.Input.Events
-import Paths_htyper (getDataDir, getDataFileName)
 import System.Console.Terminal.Size (Window (height, width), size)
-import System.Exit
 import TypingTest
 
 ui :: Arguments -> IO ()
 ui args = do
   chan <- newBChan 10
-  forkIO $
+  _ <- forkIO $
     forever $ do
       threadDelay 1000000
       writeBChan chan Tick
@@ -33,7 +29,7 @@ ui args = do
   dim <- getWindowSize
   initialVty <- buildVty
   initialState <- buildInitialState dim args 200
-  endState <- customMain initialVty buildVty (Just chan) htyper initialState
+  _ <- customMain initialVty buildVty (Just chan) htyper initialState
   return ()
 
 --constant Attribute names
@@ -70,64 +66,54 @@ getWindowSize = do
 
 drawResultScreen :: TestState -> [Widget Name]
 drawResultScreen s =
-  [ borderWithLabel (str " results ") $
+  [ borderWLabel
+      " results "
       vBox
-        [ vLimitPercent 40 $
-            vCenter $
-              hCenter $
-                hBox
-                  [ drawStats s,
-                    drawKeyInfo s
-                  ],
-          borderWithLabel (str " wpm over time ") $
-            vCenter $
-              hCenter $
-                drawWpmFunc (fst (dimensions s) - 5, round (0.6 * fromIntegral (snd (dimensions s))) - 5) s,
-          hCenter $ str "quit: CTRL-q, restart: CTRL-r"
-        ]
+      [ vLimitPercent 40 $
+          vhCenter $
+            hBox
+              [ drawStats s,
+                drawKeyInfo s
+              ],
+        borderWLabel " wpm over time " vhCenter $
+          drawWpmFunc (fst (dimensions s) - 7, round (0.6 * fromIntegral (snd (dimensions s))) - 5) s,
+        hCenter $ str "quit: CTRL-q, restart: CTRL-r"
+      ]
   ]
 
 drawStats :: TestState -> Widget Name
 drawStats s =
-  borderWithLabel (str " stats ") $
-    vCenter $
-      hCenter $
-        vBox $
-          map
-            str
-            [ "average wpm: " ++ show (round2Places (getWPM s)),
-              "\n",
-              "average raw wpm: " ++ show (round2Places (getRawWPM s)),
-              "\n",
-              "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%" ++ " | " ++ getInputStats s,
-              "\n",
-              "consistency: " ++ show (round2Places (getConsistency s)) ++ "%"
-            ]
+  borderWLabel " stats " vhCenter $
+    vBox $
+      map
+        str
+        [ "average wpm: " ++ show (round2Places (getWPM s)),
+          "\n",
+          "average raw wpm: " ++ show (round2Places (getRawWPM s)),
+          "\n",
+          "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%" ++ " | " ++ getInputStats s,
+          "\n",
+          "consistency: " ++ show (round2Places (getConsistency s)) ++ "%"
+        ]
 
 drawKeyInfo :: TestState -> Widget Name
 drawKeyInfo s =
-  borderWithLabel (str " worst keys ") $
-    vCenter $
-      hCenter $
-        vBox $
-          map
-            (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
-            (take 5 (reverse (sort (getErrorsPerChar s))))
+  borderWLabel " worst keys " vhCenter $
+    vBox $
+      map
+        (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
+        (take 5 (reverse (sort (getErrorsPerChar s))))
 
 drawTestScreen :: TestState -> [Widget Name]
 drawTestScreen s =
-  [ borderWithLabel (str "htyper") $
-      hCenter $
-        vCenter $
-          vBox
-            [ if mode (args s) == Timed then str (show (time_left s)) else str "",
-              showCursor () (Location (getCursorLoc s)) $
-                vBox $
-                  map (hBox . map drawWord) (getActiveLines s 3)
-            ]
+  [ borderWLabel " htyper " vhCenter $
+      vBox
+        [ if mode (args s) == Timed then str (show (time_left s)) else str "",
+          showCursor () (Location (getCursorLoc s)) $
+            vBox $
+              map (hBox . map drawWord) (getActiveLines s 3)
+        ]
   ]
-  where
-    cursor = text s
 
 drawWpmFunc :: (Int, Int) -> TestState -> Widget n
 drawWpmFunc (cols, rows) s = do
@@ -135,6 +121,7 @@ drawWpmFunc (cols, rows) s = do
     reverse
       ( [ hBox $
             prefix r (pos r) :
+            reverse
               [ if pos r <= wpmList !! c
                   then str "⠿"
                   else str " "
@@ -189,6 +176,12 @@ handleInputEvent s i =
           x -> continue (s {time_left = x, dimensions = dim})
         else continue (s {dimensions = dim})
     _ -> continue s
+
+vhCenter :: Widget n -> Widget n
+vhCenter = vCenter . hCenter
+
+borderWLabel :: String -> (a -> Widget n) -> a -> Widget n
+borderWLabel label content = borderWithLabel (str label) . content
 
 --resets the state of the test
 rebuildInitialState :: TestState -> IO TestState

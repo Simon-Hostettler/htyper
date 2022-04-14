@@ -91,18 +91,12 @@ type LineLength = Int
 
 buildInitialState :: (Int, Int) -> Arguments -> Int -> IO TestState
 buildInitialState dim args most_common = do
-  case mode args of
-    Quote -> do
-      test_words <- getTextFile Quote >>= getRandomQuote
-      toTestState dim args test_words
-    Random -> do
-      file <- getTextFile Random
-      test_words <- getRandomWords file most_common (numwords args)
-      toTestState dim args test_words
-    Timed -> do
-      file <- getTextFile Timed
-      test_words <- getRandomWords file most_common most_common
-      toTestState dim args test_words
+  textfile <- getTextFile (mode args)
+  test_words <- case mode args of
+    Quote -> getRandomQuote textfile
+    Random -> getRandomWords textfile most_common (numwords args)
+    Timed -> getRandomWords textfile most_common most_common
+  toTestState dim args test_words
 
 {-stat functions -}
 

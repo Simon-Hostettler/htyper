@@ -1,9 +1,7 @@
 module Main where
 
-import Data.Semigroup ((<>))
 import Options.Applicative
-import Options.Applicative.Types (optShowDefault, readerAsk)
-import Paths_htyper (getDataDir, getDataFileName)
+import Options.Applicative.Types (readerAsk)
 import TypingTest
 import UI (ui)
 
