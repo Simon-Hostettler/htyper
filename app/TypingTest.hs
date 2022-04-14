@@ -262,7 +262,7 @@ getWordLocInText = length . nonEmptyCursorPrev
 isInputCorrect :: TestWord -> Char -> Bool
 isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
 
---list of test events that contain specified char
+--list of list of test events for all chars
 getTestEventsPerChar :: TestState -> [[TestEvent]]
 getTestEventsPerChar s = filter (/= []) [filter ((== c) . toLower . input_char) (tevents s) | c <- ['a' .. 'z']]
 
