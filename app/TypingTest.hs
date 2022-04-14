@@ -28,8 +28,7 @@ where
 
 import Brick.Main (continue)
 import Brick.Types (EventM, Next)
-import Brick.Widgets.FileBrowser (fileBrowserAttr)
-import Control.Monad (ap, liftM2)
+import Control.Monad (ap)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
 import Data.Char (toLower)
@@ -212,7 +211,7 @@ getClosestToIndex :: [(Double, Double)] -> Double -> Double
 getClosestToIndex (x : (y : xs)) idx
   | snd x <= idx && idx < snd y = fst x
   | otherwise = getClosestToIndex (y : xs) idx
-getClosestToIndex [(e, i)] _ = e
+getClosestToIndex [(e, _)] _ = e
 getClosestToIndex _ _ = 0
 
 diffInSeconds :: (UTCTime, UTCTime) -> Double
@@ -224,9 +223,6 @@ getStartEndTime = ap ((,) . timestamp . last . tevents) (timestamp . head . teve
 
 amountCorrectInputs :: TestState -> Double
 amountCorrectInputs = fromIntegral . length . filter correct . tevents
-
-amountWrongInputs :: TestState -> Double
-amountWrongInputs = fromIntegral . length . filter (not . correct) . tevents
 
 amountInputs :: TestState -> Double
 amountInputs = fromIntegral . length . tevents
