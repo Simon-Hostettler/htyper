@@ -12,8 +12,8 @@ argparse =
   Arguments
     <$> option parseMode (long "mode" <> short 'm' <> value Random <> help "possible arguments: quote, random, timed")
     <*> option auto (long "time" <> short 't' <> value 30 <> showDefault <> help "How long the test should run, only affects timed mode")
-    <*> option auto (long "line_length" <> short 'l' <> value 10 <> showDefault <> help "Number of words to display per line")
-    <*> option auto (long "num_words" <> short 'n' <> value 50 <> showDefault <> help "Number of Words to randomly select")
+    <*> option auto (long "line_length" <> short 'l' <> value 12 <> showDefault <> help "Number of words to display per line")
+    <*> option auto (long "num_words" <> short 'n' <> value 36 <> showDefault <> help "Number of Words to randomly select")
 
 parseMode :: ReadM Mode
 parseMode = do

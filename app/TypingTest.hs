@@ -32,7 +32,7 @@ import Brick.Widgets.FileBrowser (fileBrowserAttr)
 import Control.Monad (ap, liftM2)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
-import Data.Char (GeneralCategory, toLower)
+import Data.Char (toLower)
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
@@ -118,7 +118,7 @@ getRawWPM s = (amountInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0
 getAccuracy :: TestState -> Double
 getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
--- gets the coefficient of variation of raw wpm per word (5 inputs) and normalizes it with a logisitic function
+-- gets the coefficient of variation of raw wpm per word (5 inputs) and normalizes it with a logistic function
 getConsistency :: TestState -> Double
 getConsistency = (* 100.0) . normalize . coeffOfVariation . nKeyRawWpm 5
 
@@ -128,6 +128,7 @@ getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (ro
 getErrorsPerChar :: TestState -> [CharErrorRate]
 getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
 
+--10 key rollover raw wpm, meaning the wpm at every keystroke averaged over the last 10 keystrokes
 get10KeyRawWpm :: Int -> TestState -> [Double]
 get10KeyRawWpm cols s = map (getClosestToIndex (zip (nKeyRawWpm 10 s) (getTimePoints s))) [0.0, (0.0 + timespan / fromIntegral cols) .. timespan]
   where
@@ -309,7 +310,7 @@ getTextFile mode = if mode == Quote then getDataFileName "quote.txt" else getDat
 
 {- Math functions -}
 
---normalize value from R to (0, 1) using an inverse exponential functon
+--normalize value from R+ to (0, 1) using an inverse exponential functon
 normalize :: Double -> Double
 normalize = exp . ((-0.9) *)
 
