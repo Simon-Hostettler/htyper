@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+
 module UI where
 
 import Brick.AttrMap (attrMap, attrName)
@@ -11,12 +14,17 @@ import Brick.Widgets.Core
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.List (sort)
+import Data.Bifunctor (bimap)
+import Data.Function (on)
+import Data.List (sort, sortBy)
+import Data.Text (concat, pack)
+import Formatting (fixed, sformat, stext, (%))
 import Graphics.Vty (defaultConfig, mkVty)
-import Graphics.Vty.Attributes
+import Graphics.Vty.Attributes (brightBlack, magenta, red, white)
 import Graphics.Vty.Input.Events
 import System.Console.Terminal.Size (Window (height, width), size)
 import TypingTest
+import Prelude hiding (concat)
 
 ui :: Arguments -> IO ()
 ui args = do
@@ -61,7 +69,7 @@ drawUI s =
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = do
-  w <- size :: IO (Maybe (Window Int))
+  w <- size @Int
   return (maybe 0 width w, maybe 0 height w)
 
 drawResultScreen :: TestState -> [Widget Name]
@@ -86,14 +94,14 @@ drawStats s =
   borderWLabel " stats " vhCenter $
     vBox $
       map
-        str
-        [ "average wpm: " ++ show (round2Places (getWPM s)),
+        txt
+        [ sformat ("wpm: " % fixed 2) (getWPM s),
           "\n",
-          "average raw wpm: " ++ show (round2Places (getRawWPM s)),
+          sformat ("raw wpm: " % fixed 2) (getRawWPM s),
           "\n",
-          "accuracy: " ++ show (round2Places (getAccuracy s)) ++ "%" ++ " | " ++ getInputStats s,
+          sformat ("accuracy: " % fixed 2 % " | " % stext) (getAccuracy s) (getInputStats s),
           "\n",
-          "consistency: " ++ show (round2Places (getConsistency s)) ++ "%"
+          sformat ("consistency: " % fixed 2 % "%") (getConsistency s)
         ]
 
 drawKeyInfo :: TestState -> Widget Name
@@ -101,19 +109,21 @@ drawKeyInfo s =
   borderWLabel " worst keys " vhCenter $
     vBox $
       map
-        (\cerr -> str (show (char cerr) ++ ": " ++ show (round2Places (100.0 * (1.0 - errorRate cerr))) ++ "%"))
-        (take 5 (reverse (sort (getErrorsPerChar s))))
+        (\cerr -> txt (sformat (stext % ": " % fixed 2 % "%") (pack [char cerr]) (100.0 * (1.0 - errorRate cerr))))
+        (take 5 (sortBy (flip compare `on` errorRate) (getErrorsPerChar s)))
 
 drawTestScreen :: TestState -> [Widget Name]
 drawTestScreen s =
   [ borderWLabel " htyper " vhCenter $
       vBox
         [ if mode (args s) == Timed then str (show (time_left s)) else str "",
-          showCursor () (Location (getCursorLoc s)) $
+          showCursor () (Location (bimap getCol getRow curLoc)) $
             vBox $
               map (hBox . map drawWord) (getActiveLines s 3)
         ]
   ]
+  where
+    curLoc = getCursorLoc s
 
 drawWpmFunc :: (Int, Int) -> TestState -> Widget n
 drawWpmFunc (cols, rows) s = do
@@ -138,8 +148,8 @@ drawWpmFunc (cols, rows) s = do
     wpmRange = 10.0 + maxWpm - minWpm
     pos x = minWpm + (wpmRange * fI x / fI rows)
     prefix i x
-      | even i && x < 100.0 = str (show (round x) ++ "   ")
-      | even i && x >= 100.0 = str (show (round x) ++ "  ")
+      | even i && round x < 100 = str (show (round x) ++ "   ")
+      | even i && round x >= 100 = str (show (round x) ++ "  ")
       | otherwise = str "     "
 
 drawWord :: TestWord -> Widget n
@@ -186,9 +196,6 @@ borderWLabel label content = borderWithLabel (str label) . content
 --resets the state of the test
 rebuildInitialState :: TestState -> IO TestState
 rebuildInitialState s = buildInitialState (dimensions s) (args s) 200
-
-round2Places :: Double -> Double
-round2Places d = fromIntegral (round $ d * 1e2) / 1e2
 
 --zipWith that extends the shorter String with the given char
 zipWithPad :: Char -> String -> String -> [(Char, Char)]

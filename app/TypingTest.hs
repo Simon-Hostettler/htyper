@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module TypingTest
   ( --data
     TestState (..),
@@ -5,6 +7,8 @@ module TypingTest
     Arguments (..),
     Mode (..),
     CharErrorRate (..),
+    Row (..),
+    Col (..),
     --state functions
     buildInitialState,
     handleTextInput,
@@ -28,14 +32,15 @@ where
 
 import Brick.Main (continue)
 import Brick.Types (EventM, Next)
-import Control.Monad (ap)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Cursor.Simple.List.NonEmpty
 import Data.Char (toLower)
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
+import Data.Text (Text, pack)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
+import Formatting (fixed, int, sformat, stext, (%))
 import Paths_htyper (getDataFileName)
 import System.Exit (die)
 import System.Random (newStdGen)
@@ -76,15 +81,9 @@ data CharErrorRate = CharErrorRate
     errorRate :: Double
   }
 
-instance Eq CharErrorRate where
-  (CharErrorRate _ er1) == (CharErrorRate _ er2) = er1 == er2
+newtype Row = Row {getRow :: Int}
 
-instance Ord CharErrorRate where
-  (CharErrorRate _ er1) `compare` (CharErrorRate _ er2) = er1 `compare` er2
-
-type Row = Int
-
-type Col = Int
+newtype Col = Col {getCol :: Int}
 
 type LineLength = Int
 
@@ -115,17 +114,19 @@ getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 getConsistency :: TestState -> Double
 getConsistency = (* 100.0) . normalize . coeffOfVariation . nKeyRawWpm 5
 
-getInputStats :: TestState -> String
-getInputStats s = show (round (amountCorrectInputs s) :: Int) ++ "/" ++ show (round (amountInputs s) :: Int)
+getInputStats :: TestState -> Text
+getInputStats s = sformat (int % "/" % int) (round (amountCorrectInputs s)) (round (amountInputs s))
 
 getErrorsPerChar :: TestState -> [CharErrorRate]
 getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
 
 --10 key rollover raw wpm, meaning the wpm at every keystroke averaged over the last 10 keystrokes
 get10KeyRawWpm :: Int -> TestState -> [Double]
-get10KeyRawWpm cols s = map (getClosestToIndex (zip (nKeyRawWpm 10 s) (getTimePoints s))) [0.0, (0.0 + timespan / fromIntegral cols) .. timespan]
+get10KeyRawWpm cols s = [getClosestToIndex inputlist timepoint | timepoint <- [0.0, step .. timespan]]
   where
+    inputlist = zip (nKeyRawWpm 10 s) (getTimePoints s)
     timespan = diffInSeconds (getStartEndTime s)
+    step = timespan / fromIntegral cols
 
 {- cursor location functions -}
 
@@ -135,17 +136,20 @@ getCursorLoc s = (getActiveCharLoc s, getActiveLineLoc s)
 
 --the row in which the currently edited line is in
 getActiveLineLoc :: TestState -> Row
-getActiveLineLoc s = if getWordLocInText (text s) + 1 > linelen (args s) then 1 else 0
+getActiveLineLoc s = Row {getRow = if getWordLocInText (text s) + 1 > linelen (args s) then 1 else 0}
 
 --the column of the active line in which the currently edited char is in
 getActiveCharLoc :: TestState -> Col
 getActiveCharLoc s =
-  getLengthOfWords (take (getWordLocInLine s) (getActiveLine s))
-    + length (input (nonEmptyCursorCurrent (text s)))
+  Col
+    { getCol =
+        getLengthOfWords (take (getWordLocInLine s) (getActiveLine s))
+          + length (input (nonEmptyCursorCurrent (text s)))
+    }
 
 --returns lines around the active line to draw
 getActiveLines :: TestState -> Int -> [[TestWord]]
-getActiveLines = flip take . ap (drop . (+ (-1)) . activeLineNum) getLines
+getActiveLines = flip take . ((drop . (+ (-1)) . activeLineNum) <*> getLines)
 
 {- input handling functions -}
 
@@ -219,7 +223,7 @@ diffInSeconds = uncurry (((abs . realToFrac) .) . flip diffUTCTime)
 
 --timestamp of first and last input
 getStartEndTime :: TestState -> (UTCTime, UTCTime)
-getStartEndTime = ap ((,) . timestamp . last . tevents) (timestamp . head . tevents)
+getStartEndTime = ((,) . timestamp . last . tevents) <*> (timestamp . head . tevents)
 
 amountCorrectInputs :: TestState -> Double
 amountCorrectInputs = fromIntegral . length . filter correct . tevents
@@ -229,15 +233,15 @@ amountInputs = fromIntegral . length . tevents
 
 --number of lines before the active line
 activeLineNum :: TestState -> Int
-activeLineNum = ap (div . getWordLocInText . text) (linelen . args)
+activeLineNum = (div . getWordLocInText . text) <*> (linelen . args)
 
 --splits words into lines of linelength
 getLines :: TestState -> [[TestWord]]
-getLines = ap (chunksOf . linelen . args) (NE.toList . rebuildNonEmptyCursor . text)
+getLines = (chunksOf . linelen . args) <*> (NE.toList . rebuildNonEmptyCursor . text)
 
 --gets words in active line
 getActiveLine :: TestState -> [TestWord]
-getActiveLine = ap ((!!) . getLines) activeLineNum
+getActiveLine = ((!!) . getLines) <*> activeLineNum
 
 --length of words including spaces, takes the max of the length of the input or word itself
 getLengthOfWords :: [TestWord] -> LineLength
@@ -245,7 +249,7 @@ getLengthOfWords = sum . map (\w -> 1 + max (length (input w)) (length (word w))
 
 --amount of words before current word in active line
 getWordLocInLine :: TestState -> Int
-getWordLocInLine = ap (mod . getWordLocInText . text) (linelen . args)
+getWordLocInLine = (mod . getWordLocInText . text) <*> (linelen . args)
 
 getWordLocInText :: NonEmptyCursor a -> Int
 getWordLocInText = length . nonEmptyCursorPrev
@@ -305,10 +309,10 @@ normalize :: Double -> Double
 normalize = exp . ((-0.9) *)
 
 coeffOfVariation :: [Double] -> Double
-coeffOfVariation = ap ((/) . stdev) mean
+coeffOfVariation = ((/) . stdev) <*> mean
 
 mean :: [Double] -> Double
-mean = ap ((/) . sum) (fromIntegral . length)
+mean = ((/) . sum) <*> (fromIntegral . length)
 
 stdev :: [Double] -> Double
 stdev v = sqrt (sum (map ((** 2) . (+ (-(mean v)))) v) / fromIntegral (length v - 1))

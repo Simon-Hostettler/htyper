@@ -16,13 +16,11 @@ argparse =
 parseMode :: ReadM Mode
 parseMode = do
   string <- readerAsk
-  return
-    ( if string == "quote"
-        then Quote
-        else
-          if string == "random"
-            then Random
-            else Timed
+  pure
+    ( case string of
+        "quote" -> Quote
+        "random" -> Random
+        _ -> Timed
     )
 
 main :: IO ()
