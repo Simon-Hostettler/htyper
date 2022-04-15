@@ -31,6 +31,8 @@ dependencies:
   - time
   - optparse-applicative
   - terminal-size
+  - formatting
+  - text
 library:
   source-dirs: src
 
