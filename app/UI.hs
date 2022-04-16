@@ -36,7 +36,7 @@ ui args = do
   let buildVty = mkVty defaultConfig
   dim <- getWindowSize
   initialVty <- buildVty
-  initialState <- buildInitialState dim args 200
+  initialState <- buildInitialState dim args 200 False
   _ <- customMain initialVty buildVty (Just chan) htyper initialState
   return ()
 
@@ -64,8 +64,16 @@ htyper =
 
 --draws either the typing test or the results depending on state
 drawUI :: TestState -> [Widget Name]
-drawUI s =
-  if done s then drawResultScreen s else drawTestScreen s
+drawUI s
+  | not (started s) = drawStartScreen
+  | done s = drawResultScreen s
+  | otherwise = drawTestScreen s
+
+{- This is a dirty hack to change the cursor during the test. Vty does not support escape sequences,
+  using them messes up the layout. So I created a start screen in which the layout does not matter
+  and print it there. This will have to suffice until vty supports different cursors. -}
+drawStartScreen :: [Widget Name]
+drawStartScreen = [vBox [str "\ESC[5 q", vhCenter (str "Press any key to start")]]
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = do
@@ -172,12 +180,14 @@ handleInputEvent :: TestState -> BrickEvent Name Tick -> EventM n (Next TestStat
 handleInputEvent s i =
   case i of
     VtyEvent vtye ->
-      case vtye of
-        EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
-        EvKey (KChar 'q') [MCtrl] -> halt s
-        EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
-        EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
-        _ -> continue s
+      if not (started s)
+        then continue (s {started = True})
+        else case vtye of
+          EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
+          EvKey (KChar 'q') [MCtrl] -> halt s
+          EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
+          EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
+          _ -> continue s
     AppEvent Tick -> do
       dim <- liftIO getWindowSize
       if mode (args s) == Timed
@@ -195,7 +205,7 @@ borderWLabel label content = borderWithLabel (str label) . content
 
 --resets the state of the test
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s = buildInitialState (dimensions s) (args s) 200
+rebuildInitialState s = buildInitialState (dimensions s) (args s) 200 (started s)
 
 --zipWith that extends the shorter String with the given char
 zipWithPad :: Char -> String -> String -> [(Char, Char)]
