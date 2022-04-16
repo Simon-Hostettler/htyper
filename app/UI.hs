@@ -19,7 +19,7 @@ import Data.Function (on)
 import Data.List (sort, sortBy)
 import Data.Text (concat, pack)
 import Formatting (fixed, sformat, stext, (%))
-import Graphics.Vty (defaultConfig, mkVty)
+import Graphics.Vty (Vty (update), defAttr, defaultConfig, mkVty, picForImage, string, withForeColor)
 import Graphics.Vty.Attributes (brightBlack, magenta, red, white)
 import Graphics.Vty.Input.Events
 import System.Console.Terminal.Size (Window (height, width), size)
@@ -29,6 +29,7 @@ import Prelude hiding (concat)
 ui :: Arguments -> IO ()
 ui args = do
   chan <- newBChan 10
+  {- ↓ separate thread that sends a tick to the brick app every second, used for timed mode-}
   _ <- forkIO $
     forever $ do
       threadDelay 1000000
@@ -36,7 +37,12 @@ ui args = do
   let buildVty = mkVty defaultConfig
   dim <- getWindowSize
   initialVty <- buildVty
-  initialState <- buildInitialState dim args 200 False
+  {- ↓ Vty does not conform well with custom escape sequences, such as changing the cursor.
+    Therefore this frame is drawn before the initialisation of the brick app-}
+  let firstFrame = picForImage (string (defAttr `withForeColor` white) "\ESC[5 q")
+  update initialVty firstFrame
+  {- ↑ will be removed if Vty implements changing the cursor shape-}
+  initialState <- buildInitialState dim args 200
   _ <- customMain initialVty buildVty (Just chan) htyper initialState
   return ()
 
@@ -64,16 +70,7 @@ htyper =
 
 --draws either the typing test or the results depending on state
 drawUI :: TestState -> [Widget Name]
-drawUI s
-  | not (started s) = drawStartScreen
-  | done s = drawResultScreen s
-  | otherwise = drawTestScreen s
-
-{- This is a dirty hack to change the cursor during the test. Vty does not support escape sequences,
-  using them messes up the layout. So I created a start screen in which the layout does not matter
-  and print it there. This will have to suffice until vty supports different cursors. -}
-drawStartScreen :: [Widget Name]
-drawStartScreen = [vBox [str "\ESC[5 q", vhCenter (str "Press any key to start")]]
+drawUI s = if done s then drawResultScreen s else drawTestScreen s
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = do
@@ -180,14 +177,12 @@ handleInputEvent :: TestState -> BrickEvent Name Tick -> EventM n (Next TestStat
 handleInputEvent s i =
   case i of
     VtyEvent vtye ->
-      if not (started s)
-        then continue (s {started = True})
-        else case vtye of
-          EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
-          EvKey (KChar 'q') [MCtrl] -> halt s
-          EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
-          EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
-          _ -> continue s
+      case vtye of
+        EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
+        EvKey (KChar 'q') [MCtrl] -> halt s
+        EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
+        EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
+        _ -> continue s
     AppEvent Tick -> do
       dim <- liftIO getWindowSize
       if mode (args s) == Timed
@@ -205,7 +200,7 @@ borderWLabel label content = borderWithLabel (str label) . content
 
 --resets the state of the test
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s = buildInitialState (dimensions s) (args s) 200 (started s)
+rebuildInitialState s = buildInitialState (dimensions s) (args s) 200
 
 --zipWith that extends the shorter String with the given char
 zipWithPad :: Char -> String -> String -> [(Char, Char)]
