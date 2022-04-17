@@ -30,54 +30,55 @@ module TypingTest
   )
 where
 
-import Brick.Main (continue)
-import Brick.Types (EventM, Next)
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Cursor.Simple.List.NonEmpty
-import Data.Char (toLower)
-import Data.List (isPrefixOf)
-import qualified Data.List.NonEmpty as NE
-import Data.List.Split (chunksOf, splitOn)
-import Data.Text (Text, pack)
-import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
-import Formatting (fixed, int, sformat, stext, (%))
-import Paths_htyper (getDataFileName)
-import System.Exit (die)
-import System.Random (newStdGen)
-import System.Random.Shuffle (shuffle')
+import           Brick.Main                  (continue)
+import           Brick.Types                 (EventM, Next)
+import           Control.Monad.IO.Class      (MonadIO (liftIO))
+import           Cursor.Simple.List.NonEmpty
+import           Data.Char                   (toLower)
+import           Data.List                   (isPrefixOf)
+import qualified Data.List.NonEmpty          as NE
+import           Data.List.Split             (chunksOf, splitOn)
+import           Data.Text                   (Text)
+import           Data.Time.Clock             (UTCTime, diffUTCTime,
+                                              getCurrentTime)
+import           Formatting                  (int, sformat, (%))
+import           Paths_htyper                (getDataFileName)
+import           System.Exit                 (die)
+import           System.Random               (newStdGen)
+import           System.Random.Shuffle       (shuffle')
 
 data TestState = TestState
-  { text :: NonEmptyCursor TestWord,
-    tevents :: [TestEvent],
-    done :: Bool,
+  { text       :: NonEmptyCursor TestWord,
+    tevents    :: [TestEvent],
+    done       :: Bool,
     dimensions :: (Int, Int),
-    time_left :: Int,
-    args :: Arguments
+    time_left  :: Int,
+    args       :: Arguments
   }
 
 data Arguments = Arguments
-  { mode :: Mode,
-    time :: Int,
-    linelen :: LineLength,
+  { mode     :: Mode,
+    time     :: Int,
+    linelen  :: LineLength,
     numwords :: Int
   }
 
 data Mode = Quote | Random | Timed deriving (Eq)
 
 data TestWord = TestWord
-  { word :: String,
+  { word  :: String,
     input :: String
   }
 
 data TestEvent = TestEvent
-  { timestamp :: UTCTime,
-    correct :: Bool,
+  { timestamp  :: UTCTime,
+    correct    :: Bool,
     input_char :: Char
   }
   deriving (Eq)
 
 data CharErrorRate = CharErrorRate
-  { char :: Char,
+  { char      :: Char,
     errorRate :: Double
   }
 
@@ -91,9 +92,9 @@ buildInitialState :: (Int, Int) -> Arguments -> Int -> IO TestState
 buildInitialState dim args most_common = do
   textfile <- getTextFile (mode args)
   test_words <- case mode args of
-    Quote -> getRandomQuote textfile
+    Quote  -> getRandomQuote textfile
     Random -> getRandomWords textfile most_common (numwords args)
-    Timed -> getRandomWords textfile most_common most_common
+    Timed  -> getRandomWords textfile most_common most_common
   toTestState dim args test_words
 
 {-stat functions -}
@@ -181,7 +182,7 @@ handleBackSpaceInput s = do
   case input cur_word of
     "" -> do
       case nonEmptyCursorSelectPrev cursor of
-        Nothing -> continue s
+        Nothing      -> continue s
         Just cursor' -> continue $ s {text = cursor'}
     _ -> do
       let new_word = TestWord {word = word cur_word, input = init (input cur_word)}
@@ -190,7 +191,7 @@ handleBackSpaceInput s = do
         Nothing -> continue s
         Just ne -> do
           case makeNonEmptyCursorWithSelection (getWordLocInText cursor) ne of
-            Nothing -> continue s
+            Nothing  -> continue s
             Just ne' -> continue $ s {text = ne'}
   where
     cursor = text s

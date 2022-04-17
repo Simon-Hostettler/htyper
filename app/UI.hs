@@ -1,30 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module UI where
 
-import Brick.AttrMap (attrMap, attrName)
-import Brick.BChan (newBChan, writeBChan)
-import Brick.Main
-import Brick.Types
-import Brick.Util (fg)
-import Brick.Widgets.Border (borderWithLabel)
-import Brick.Widgets.Center (hCenter, vCenter)
-import Brick.Widgets.Core
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever)
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Bifunctor (bimap)
-import Data.Function (on)
-import Data.List (sort, sortBy)
-import Data.Text (concat, pack)
-import Formatting (fixed, sformat, stext, (%))
-import Graphics.Vty (Vty (update), defAttr, defaultConfig, mkVty, picForImage, string, withForeColor)
-import Graphics.Vty.Attributes (brightBlack, magenta, red, white)
-import Graphics.Vty.Input.Events
-import System.Console.Terminal.Size (Window (height, width), size)
-import TypingTest
-import Prelude hiding (concat)
+import           Brick.AttrMap                (attrMap, attrName)
+import           Brick.BChan                  (newBChan, writeBChan)
+import           Brick.Main
+import           Brick.Types
+import           Brick.Util                   (fg)
+import           Brick.Widgets.Border         (borderWithLabel)
+import           Brick.Widgets.Center         (hCenter, vCenter)
+import           Brick.Widgets.Core
+import           Control.Concurrent           (forkIO, threadDelay)
+import           Control.Monad                (forever)
+import           Control.Monad.IO.Class       (MonadIO (liftIO))
+import           Data.Bifunctor               (bimap)
+import           Data.Function                (on)
+import           Data.List                    (sortBy)
+import           Data.Text                    (pack)
+import           Formatting                   (fixed, sformat, stext, (%))
+import           Graphics.Vty                 (Vty (update), defAttr,
+                                               defaultConfig, mkVty,
+                                               picForImage, string,
+                                               withForeColor)
+import           Graphics.Vty.Attributes      (brightBlack, magenta, red, white)
+import           Graphics.Vty.Input.Events
+import           Prelude                      hiding (concat)
+import           System.Console.Terminal.Size (Window (height, width), size)
+import           TypingTest
 
 ui :: Arguments -> IO ()
 ui args = do
@@ -205,5 +208,5 @@ rebuildInitialState s = buildInitialState (dimensions s) (args s) 200
 --zipWith that extends the shorter String with the given char
 zipWithPad :: Char -> String -> String -> [(Char, Char)]
 zipWithPad c (x : xs) (y : ys) = (x, y) : zipWithPad c xs ys
-zipWithPad c [] ys = zip (repeat c) ys
-zipWithPad c xs [] = zip xs (repeat c)
+zipWithPad c [] ys             = zip (repeat c) ys
+zipWithPad c xs []             = zip xs (repeat c)
