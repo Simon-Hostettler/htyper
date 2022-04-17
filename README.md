@@ -23,6 +23,8 @@ $ stack install
 This will create a copy of the executable in `~/.local/bin` . If you want to run htyper from any directory, you should add this to your `PATH`.
 This was only tested on Linux, I can't guarantee that installation on another OS will work.
 
+htyper uses the DECSCUSR escape sequence to change the cursor shape, which might not be supported by every terminal. 
+
 # Usage
 
 ```
