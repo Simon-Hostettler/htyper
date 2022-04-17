@@ -1,0 +1,19 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "htyper:lib"
+
+    - path: "./app/Main.hs"
+      component: "htyper:exe:htyper"
+
+    - path: "./app/TypingTest.hs"
+      component: "htyper:exe:htyper"
+
+    - path: "./app/UI.hs"
+      component: "htyper:exe:htyper"
+
+    - path: "./app/Paths_htyper.hs"
+      component: "htyper:exe:htyper"
+
+    - path: "./test"
+      component: "htyper:test:htyper-test"
