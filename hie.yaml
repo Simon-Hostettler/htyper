@@ -3,6 +3,9 @@ cradle:
     - path: "./src"
       component: "htyper:lib"
 
+    - path: "./app/Config.hs"
+      component: "htyper:exe:htyper"
+
     - path: "./app/Main.hs"
       component: "htyper:exe:htyper"
 

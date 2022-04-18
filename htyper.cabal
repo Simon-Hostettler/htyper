@@ -53,6 +53,7 @@ library
 executable htyper
   main-is: Main.hs
   other-modules:
+      Config
       TypingTest
       UI
       Paths_htyper
