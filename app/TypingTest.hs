@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module TypingTest
-  ( --data
+  ( {- data -}
     TestState (..),
     TestWord (..),
     Arguments (..),
@@ -9,11 +9,11 @@ module TypingTest
     CharErrorRate (..),
     Row (..),
     Col (..),
-    --state functions
+    {- state functions -}
     buildInitialState,
     handleTextInput,
     handleBackSpaceInput,
-    --stat functions
+    {- stat functions -}
     getWPM,
     getRawWPM,
     getAccuracy,
@@ -21,17 +21,18 @@ module TypingTest
     getInputStats,
     getErrorsPerChar,
     get10KeyRawWpm,
-    --cursor functions
+    {- cursor functions -}
     getCursorLoc,
     getActiveCharLoc,
     getActiveLineLoc,
-    --other
+    {- other -}
     getActiveLines,
   )
 where
 
 import           Brick.Main                  (continue)
 import           Brick.Types                 (EventM, Next)
+import           Config
 import           Control.Monad.IO.Class      (MonadIO (liftIO))
 import           Cursor.Simple.List.NonEmpty
 import           Data.Char                   (toLower)
@@ -48,13 +49,13 @@ import           System.Random               (newStdGen)
 import           System.Random.Shuffle       (shuffle')
 
 data TestState = TestState
-  { text        :: NonEmptyCursor TestWord,
-    tevents     :: [TestEvent],
-    done        :: Bool,
-    numComWords :: Int,
-    dimensions  :: (Int, Int),
-    time_left   :: Int,
-    args        :: Arguments
+  { text       :: NonEmptyCursor TestWord,
+    tevents    :: [TestEvent],
+    done       :: Bool,
+    dimensions :: (Int, Int),
+    time_left  :: Int,
+    config     :: Conf,
+    args       :: Arguments
   }
 
 data Arguments = Arguments
@@ -89,30 +90,31 @@ newtype Col = Col {getCol :: Int}
 
 type LineLength = Int
 
-buildInitialState :: (Int, Int) -> Arguments -> Int -> IO TestState
-buildInitialState dim args most_common = do
+buildInitialState :: (Int, Int) -> Conf -> Arguments -> IO TestState
+buildInitialState dim conf args = do
+  let ncw = numCommonWords conf
   textfile <- getTextFile (mode args)
   test_words <- case mode args of
     Quote  -> getRandomQuote textfile
-    Random -> getRandomWords textfile most_common (numwords args)
-    Timed  -> getRandomWords textfile most_common most_common
-  toTestState most_common dim args test_words
+    Random -> getRandomWords textfile ncw (numwords args)
+    Timed  -> getRandomWords textfile ncw ncw
+  toTestState dim conf args test_words
 
 {-stat functions -}
 
---(#correct inputs / 5) / time passed, since the average english word is 5 characters long
+{- (#correct inputs / 5) / time passed, since the average english word is 5 characters long -}
 getWPM :: TestState -> Double
 getWPM s = (amountCorrectInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
 
---same as above, but counts all inputs
+{- same as above, but counts all inputs -}
 getRawWPM :: TestState -> Double
 getRawWPM s = (amountInputs s / 5.0) / (diffInSeconds (getStartEndTime s) / 60.0)
 
---percentage of correct inputs / total inputs
+{- percentage of correct inputs / total inputs -}
 getAccuracy :: TestState -> Double
 getAccuracy s = 100.0 * (amountCorrectInputs s / amountInputs s)
 
--- gets the coefficient of variation of raw wpm per word (5 inputs) and normalizes it with a logistic function
+{- gets the coefficient of variation of raw wpm per word (5 inputs) and normalizes it with a logistic function -}
 getConsistency :: TestState -> Double
 getConsistency = (* 100.0) . normalize . coeffOfVariation . nKeyRawWpm 5
 
@@ -122,7 +124,7 @@ getInputStats s = sformat (int % "/" % int) (round (amountCorrectInputs s)) (rou
 getErrorsPerChar :: TestState -> [CharErrorRate]
 getErrorsPerChar s = map (\l -> CharErrorRate {char = input_char (head l), errorRate = getErrorRate l}) (getTestEventsPerChar s)
 
---10 key rollover raw wpm, meaning the wpm at every keystroke averaged over the last 10 keystrokes
+{- 10 key rollover raw wpm, meaning the wpm at every keystroke averaged over the last 10 keystrokes -}
 get10KeyRawWpm :: Int -> TestState -> [Double]
 get10KeyRawWpm cols s = [getClosestToIndex inputlist timepoint | timepoint <- [0.0, step .. timespan]]
   where
@@ -132,15 +134,15 @@ get10KeyRawWpm cols s = [getClosestToIndex inputlist timepoint | timepoint <- [0
 
 {- cursor location functions -}
 
---coordinates to place cursor in UI
+{- coordinates to place cursor in UI -}
 getCursorLoc :: TestState -> (Col, Row)
 getCursorLoc s = (getActiveCharLoc s, getActiveLineLoc s)
 
---the row in which the currently edited line is in
+{- the row in which the currently edited line is in -}
 getActiveLineLoc :: TestState -> Row
 getActiveLineLoc s = Row {getRow = if getWordLocInText (text s) + 1 > linelen (args s) then 1 else 0}
 
---the column of the active line in which the currently edited char is in
+{- the column of the active line in which the currently edited char is in -}
 getActiveCharLoc :: TestState -> Col
 getActiveCharLoc s =
   Col
@@ -149,13 +151,13 @@ getActiveCharLoc s =
           + length (input (nonEmptyCursorCurrent (text s)))
     }
 
---returns lines around the active line to draw
+{- returns lines around the active line to draw -}
 getActiveLines :: TestState -> Int -> [[TestWord]]
 getActiveLines = flip take . ((drop . (+ (-1)) . activeLineNum) <*> getLines)
 
 {- input handling functions -}
 
---adds new InputEvent to State and advances State logic
+{- adds new InputEvent to State and advances State logic -}
 handleTextInput :: TestState -> Char -> EventM n (Next TestState)
 handleTextInput s c =
   case c of
@@ -177,7 +179,7 @@ handleTextInput s c =
     cursor = text s
     cur_word = nonEmptyCursorCurrent cursor
 
---either removes a char from the active word or jumps to the previous word if empty
+{- either removes a char from the active word or jumps to the previous word if empty -}
 handleBackSpaceInput :: TestState -> EventM n (Next TestState)
 handleBackSpaceInput s = do
   case input cur_word of
@@ -200,19 +202,19 @@ handleBackSpaceInput s = do
 
 {- Internal Helper functions -}
 
--- average raw wpm over n key presses
+{- average raw wpm over n key presses -}
 nKeyRawWpm :: Int -> TestState -> [Double]
-nKeyRawWpm n = map ((60.0 * (fromIntegral n / 5.0)) /) . diffOfPairs n . tevents
+nKeyRawWpm n = map ((60.0 * (fromIntegral n / 5.0)) /) . diffOfPairs n . reverse . tevents
 
--- returns timestamp in seconds relative to start time for every testinput
+{- returns timestamp in seconds relative to start time for every testinput -}
 getTimePoints :: TestState -> [Double]
 getTimePoints s = map (\e -> diffInSeconds (timestamp e, fst (getStartEndTime s))) (reverse (tevents s))
 
---difference in time between shifted pairs in list
+{- difference in time between shifted pairs in list, i.e. shift = 10 -> [t1, t2...] -> [t11 - t1, t12 - t2, ...] -}
 diffOfPairs :: Int -> [TestEvent] -> [Double]
 diffOfPairs shift l = zipWith (\x y -> diffInSeconds (timestamp x, timestamp y)) l (drop shift l)
 
--- takes list of pairs (entry, index) (sorted by index) and an arbitrary index and returns entry closest to that index
+{- takes list of pairs (entry, index) (sorted by index) and an arbitrary index and returns entry closest to that index -}
 getClosestToIndex :: [(Double, Double)] -> Double -> Double
 getClosestToIndex (x : (y : xs)) idx
   | snd x <= idx && idx < snd y = fst x
@@ -223,49 +225,52 @@ getClosestToIndex _ _ = 0
 diffInSeconds :: (UTCTime, UTCTime) -> Double
 diffInSeconds = uncurry (((abs . realToFrac) .) . flip diffUTCTime)
 
---timestamp of first and last input
+{- timestamp of first and last input -}
 getStartEndTime :: TestState -> (UTCTime, UTCTime)
 getStartEndTime = ((,) . timestamp . last . tevents) <*> (timestamp . head . tevents)
 
+{- These two functions return doubles for convenience, however the output value is always a whole number -}
 amountCorrectInputs :: TestState -> Double
 amountCorrectInputs = fromIntegral . length . filter correct . tevents
 
 amountInputs :: TestState -> Double
 amountInputs = fromIntegral . length . tevents
 
---number of lines before the active line
+{- number of lines before the active line -}
 activeLineNum :: TestState -> Int
 activeLineNum = (div . getWordLocInText . text) <*> (linelen . args)
 
---splits words into lines of linelength
+{- splits words into lines of linelength -}
 getLines :: TestState -> [[TestWord]]
 getLines = (chunksOf . linelen . args) <*> (NE.toList . rebuildNonEmptyCursor . text)
 
---gets words in active line
+{- gets words in active line -}
 getActiveLine :: TestState -> [TestWord]
 getActiveLine = ((!!) . getLines) <*> activeLineNum
 
---length of words including spaces, takes the max of the length of the input or word itself
+{- length of words including spaces, takes the max of the length of the input or word itself -}
 getLengthOfWords :: [TestWord] -> LineLength
 getLengthOfWords = sum . map (\w -> 1 + max (length (input w)) (length (word w)))
 
---amount of words before current word in active line
+{- amount of words before current word in active line -}
 getWordLocInLine :: TestState -> Int
 getWordLocInLine = (mod . getWordLocInText . text) <*> (linelen . args)
 
+{- number of words in the text before the active word -}
 getWordLocInText :: NonEmptyCursor a -> Int
 getWordLocInText = length . nonEmptyCursorPrev
 
 isInputCorrect :: TestWord -> Char -> Bool
 isInputCorrect w c = (input w ++ [c]) `isPrefixOf` word w
 
---list of list of test events for all chars
+{- list of list of test events for all chars [a-z], doesn't differentiate between upper and lower case -}
 getTestEventsPerChar :: TestState -> [[TestEvent]]
 getTestEventsPerChar s = filter (/= []) [filter ((== c) . toLower . input_char) (tevents s) | c <- ['a' .. 'z']]
 
---used by getCharErrorRate, returns incorrect inputs of that char / total inputs of that char
+{- used by getCharErrorRate, returns incorrect inputs of that char / total inputs of that char -}
 getErrorRate :: [TestEvent] -> Double
 getErrorRate list = fromIntegral (length (filter (not . correct) list)) / fromIntegral (length list)
+
 
 addTestEvent :: Bool -> Char -> TestState -> IO TestState
 addTestEvent b c s = do
@@ -276,13 +281,19 @@ addTestEvent b c s = do
 toTestWord :: String -> TestWord
 toTestWord s = TestWord {word = s, input = ""}
 
-toTestState :: Int -> (Int, Int) -> Arguments -> [TestWord] -> IO TestState
-toTestState ncwords dim args twords =
+toTestState :: (Int, Int) -> Conf -> Arguments -> [TestWord] -> IO TestState
+toTestState dim conf args twords =
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
-    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], dimensions = dim, done = False, args = args, time_left = time args, numComWords = ncwords}
+    Just txt -> pure TestState {text = makeNonEmptyCursor txt,
+     tevents = [],
+      dimensions = dim,
+       done = False,
+        args = args,
+         time_left = time args,
+          config = conf}
 
---shuffles most_common amount of words from a file and returns num_words of them
+{- shuffles most_common amount of words from a file and returns num_words of them -}
 getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]
 getRandomWords file most_common num_words = do
   rng <- newStdGen
@@ -291,7 +302,7 @@ getRandomWords file most_common num_words = do
   let sampled_words = take num_words (shuffle' word_list (length word_list) rng)
   return (map toTestWord sampled_words)
 
---gets a random quote from a file, quotes should be delimited by a ^_^
+{- gets a random quote from a file, quotes should be delimited by a ^_^ -}
 getRandomQuote :: FilePath -> IO [TestWord]
 getRandomQuote file = do
   rng <- newStdGen
@@ -300,13 +311,13 @@ getRandomQuote file = do
   let rand_quote = head (shuffle' quotes (length quotes) rng)
   return (map toTestWord (words rand_quote))
 
---returns the quote file or the most common words file, depending on the mode of the test
+{- returns the quote file or the most common words file, depending on the mode of the test -}
 getTextFile :: Mode -> IO FilePath
 getTextFile mode = if mode == Quote then getDataFileName "quotes.txt" else getDataFileName "1000us.txt"
 
 {- Math functions -}
 
---normalize value from R+ to (0, 1) using an inverse exponential functon
+{- normalize value from R+ to (0, 1) using an inverse exponential functon -}
 normalize :: Double -> Double
 normalize = exp . ((-0.9) *)
 

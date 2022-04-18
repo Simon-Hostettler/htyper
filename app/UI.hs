@@ -42,15 +42,17 @@ ui conf args = do
   dim <- getWindowSize
   initialVty <- buildVty
   {- ↓ Vty does not conform well with custom escape sequences, such as changing the cursor.
-    Therefore this frame is drawn before the initialisation of the brick app-}
-  let firstFrame = picForImage (string (defAttr `withForeColor` white) ("\ESC[" ++ show (cursorShape conf) ++ " q"))
+    Therefore this frame is drawn before the initialisation of the brick app. It renders
+    the string "\ESC[x q" which is an escape sequence to change the terminal cursor-}
+  let firstFrame = picForImage (string (fg white) ("\ESC[" ++ show (cursorShape conf) ++ " q"))
   update initialVty firstFrame
   {- ↑ will be removed if Vty implements changing the cursor shape-}
-  initialState <- buildInitialState dim args (numCommonWords conf)
-  _ <- customMain initialVty buildVty (Just chan) (htyper (fg (uncurry3 rgbColor (fgColor conf)))) initialState
-  return ()
+  initialState <- buildInitialState dim conf args
+  let fgcolor = uncurry3 rgbColor (fgColor conf)
+  _ <- customMain initialVty buildVty (Just chan) (htyper (fg fgcolor)) initialState
+  print (show (fgColor conf))
 
---constant Attribute names
+{-constant Attribute names-}
 (standard, corr, wrong, unfilled) =
   ( attrName "standard",
     attrName "correct",
@@ -72,7 +74,7 @@ htyper fgcolor =
       appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fgcolor), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
---draws either the typing test or the results depending on state
+{- draws either the typing test or the results depending on state -}
 drawUI :: TestState -> [Widget Name]
 drawUI s = if done s then drawResultScreen s else drawTestScreen s
 
@@ -140,7 +142,6 @@ drawWpmFunc (cols, rows) s = do
     reverse
       ( [ hBox $
             prefix r (pos r) :
-            reverse
               [ if pos r <= wpmList !! c
                   then str "⠿"
                   else str " "
@@ -167,7 +168,7 @@ drawWord w =
     "" -> hBox [withAttr unfilled (str (word w)), withAttr standard (str " ")]
     _ -> hBox $ map drawChar (zipWithPad ' ' (word w) (input w)) ++ [withAttr standard (str " ")]
 
---draws and colors a char, who's color depends on whether the input and word match
+{- draws and colors a char, who's color depends on whether the input and word match -}
 drawChar :: (Char, Char) -> Widget n
 drawChar (c1, c2)
   | c1 == ' ' = withAttr wrong (str [c2])
@@ -176,7 +177,7 @@ drawChar (c1, c2)
   | c1 /= c2 = withAttr wrong (str [c2])
   | otherwise = str [' ']
 
--- Ctrl-q exits htyper, Ctrl-r reloads htyper, any other input is handled by the test
+{- Ctrl-q exits htyper, Ctrl-r reloads htyper, any other input is handled by the test -}
 handleInputEvent :: TestState -> BrickEvent Name Tick -> EventM n (Next TestState)
 handleInputEvent s i =
   case i of
@@ -202,15 +203,16 @@ vhCenter = vCenter . hCenter
 borderWLabel :: String -> (a -> Widget n) -> a -> Widget n
 borderWLabel label content = borderWithLabel (str label) . content
 
---resets the state of the test
+{- resets the state of the test -}
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s = buildInitialState (dimensions s) (args s) (numComWords s)
+rebuildInitialState s = buildInitialState (dimensions s) (config s) (args s)
 
---zipWith that extends the shorter String with the given char
+{- zipWith that extends the shorter String with the given char -}
 zipWithPad :: Char -> String -> String -> [(Char, Char)]
 zipWithPad c (x : xs) (y : ys) = (x, y) : zipWithPad c xs ys
 zipWithPad c [] ys             = zip (repeat c) ys
 zipWithPad c xs []             = zip xs (repeat c)
 
+{- transforms a function that takes three inputs to a function that takes a tuple with three elements -}
 uncurry3                 :: (a -> b -> c -> d) -> ((a, b, c) -> d)
 uncurry3 f (a, b, c)     =  f a b c
