@@ -285,13 +285,15 @@ toTestState :: (Int, Int) -> Conf -> Arguments -> [TestWord] -> IO TestState
 toTestState dim conf args twords =
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
-    Just txt -> pure TestState {text = makeNonEmptyCursor txt,
-     tevents = [],
+    Just txt -> pure TestState {
+      text = makeNonEmptyCursor txt,
+      tevents = [],
       dimensions = dim,
-       done = False,
-        args = args,
-         time_left = time args,
-          config = conf}
+      done = False,
+      args = args,
+      time_left = time args,
+      config = conf
+    }
 
 {- shuffles most_common amount of words from a file and returns num_words of them -}
 getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]
