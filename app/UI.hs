@@ -50,7 +50,7 @@ ui conf args = do
   initialState <- buildInitialState dim conf args
   let fgcolor = uncurry3 rgbColor (fgColor conf)
   _ <- customMain initialVty buildVty (Just chan) (htyper (fg fgcolor)) initialState
-  print (show (fgColor conf))
+  return ()
 
 {-constant Attribute names-}
 (standard, corr, wrong, unfilled) =
