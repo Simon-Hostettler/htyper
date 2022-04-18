@@ -42,7 +42,7 @@ readConfig = do
     return Conf {fgColor = fC, cursorShape = read cS, numCommonWords = read nC}
 
 hexToRgb :: Int -> (Int, Int, Int)
-hexToRgb hx = (hx `shiftR` 16, (hx `shiftR` 8) `mod` 0xff00, hx `mod` 0xffff00)
+hexToRgb hx = (hx `shiftR` 16, (hx `shiftR` 8) `mod` 0x100, hx `mod` 0x100)
 
 getSettingByName :: [String] -> String -> String
 getSettingByName (x:xs) setting
