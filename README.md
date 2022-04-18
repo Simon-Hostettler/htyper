@@ -43,7 +43,7 @@ Running htyper will create the file `~/.config/htyper/htyper.conf`, which contai
 
 | Variable | Type (Range) | Description |
 | --- | --- | --- |
-|`fgcolor`| Hexadecimal Int (0x000000 -> 0xffffff) | The color of the test text. |
+|`fgcolor`| Hexadecimal Int (000000 -> ffffff) | The color of the test text. |
 |`cursorshape`| Int (0 -> 6) | The displayed text cursor. 0-1 = blinking block, 2 = steady block, 3 = blinking underline, 4 = steady underline, 5 = blinking bar, 6 = steady bar.|
 |`numcommonwords`| Int (0 -> 1000) | The amount of words to use from the 1000 most common list (Used in Random and Timed Mode). |
 
