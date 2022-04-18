@@ -1,9 +1,10 @@
 module Main where
 
-import Options.Applicative
-import Options.Applicative.Types (readerAsk)
-import TypingTest
-import UI (ui)
+import           Config
+import           Options.Applicative
+import           Options.Applicative.Types (readerAsk)
+import           TypingTest
+import           UI                        (ui)
 
 argparse :: Parser Arguments
 argparse =
@@ -18,15 +19,18 @@ parseMode = do
   string <- readerAsk
   pure
     ( case string of
-        "quote" -> Quote
+        "quote"  -> Quote
         "random" -> Random
-        _ -> Timed
+        _        -> Timed
     )
 
 main :: IO ()
-main = runTest =<< execParser opts
-  where
-    opts = info (argparse <**> helper) (fullDesc <> progDesc "A cli-based typing test written in haskell" <> header "htyper")
+main = do
+  conf <- readConfig
+  runTest conf =<< execParser opts
+    where
+      opts = info (argparse <**> helper) (fullDesc <> progDesc "A cli-based typing test written in haskell" <> header "htyper")
 
-runTest :: Arguments -> IO ()
+
+runTest :: Conf -> Arguments ->IO ()
 runTest = ui

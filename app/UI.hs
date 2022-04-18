@@ -3,7 +3,7 @@
 
 module UI where
 
-import           Brick.AttrMap                (attrMap, attrName)
+import           Brick.AttrMap                (AttrName, attrMap, attrName)
 import           Brick.BChan                  (newBChan, writeBChan)
 import           Brick.Main
 import           Brick.Types
@@ -11,6 +11,7 @@ import           Brick.Util                   (fg)
 import           Brick.Widgets.Border         (borderWithLabel)
 import           Brick.Widgets.Center         (hCenter, vCenter)
 import           Brick.Widgets.Core
+import           Config
 import           Control.Concurrent           (forkIO, threadDelay)
 import           Control.Monad                (forever)
 import           Control.Monad.IO.Class       (MonadIO (liftIO))
@@ -19,9 +20,9 @@ import           Data.Function                (on)
 import           Data.List                    (sortBy)
 import           Data.Text                    (pack)
 import           Formatting                   (fixed, sformat, stext, (%))
-import           Graphics.Vty                 (Vty (update), defAttr,
+import           Graphics.Vty                 (Attr, Vty (update), defAttr,
                                                defaultConfig, mkVty,
-                                               picForImage, string,
+                                               picForImage, rgbColor, string,
                                                withForeColor)
 import           Graphics.Vty.Attributes      (brightBlack, magenta, red, white)
 import           Graphics.Vty.Input.Events
@@ -29,8 +30,8 @@ import           Prelude                      hiding (concat)
 import           System.Console.Terminal.Size (Window (height, width), size)
 import           TypingTest
 
-ui :: Arguments -> IO ()
-ui args = do
+ui :: Conf -> Arguments -> IO ()
+ui conf args = do
   chan <- newBChan 10
   {- ↓ separate thread that sends a tick to the brick app every second, used for timed mode-}
   _ <- forkIO $
@@ -42,11 +43,11 @@ ui args = do
   initialVty <- buildVty
   {- ↓ Vty does not conform well with custom escape sequences, such as changing the cursor.
     Therefore this frame is drawn before the initialisation of the brick app-}
-  let firstFrame = picForImage (string (defAttr `withForeColor` white) "\ESC[5 q")
+  let firstFrame = picForImage (string (defAttr `withForeColor` white) ("\ESC[" ++ show (cursorShape conf) ++ " q"))
   update initialVty firstFrame
   {- ↑ will be removed if Vty implements changing the cursor shape-}
-  initialState <- buildInitialState dim args 200
-  _ <- customMain initialVty buildVty (Just chan) htyper initialState
+  initialState <- buildInitialState dim args (numCommonWords conf)
+  _ <- customMain initialVty buildVty (Just chan) (htyper (fg (uncurry3 rgbColor (fgColor conf)))) initialState
   return ()
 
 --constant Attribute names
@@ -61,14 +62,14 @@ data Tick = Tick
 
 type Name = ()
 
-htyper :: App TestState Tick Name
-htyper =
+htyper :: Attr -> App TestState Tick Name
+htyper fgcolor =
   App
     { appDraw = drawUI,
       appChooseCursor = showFirstCursor,
       appHandleEvent = handleInputEvent,
       appStartEvent = pure,
-      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fg magenta {-(rgbColor 204 81 195)-}), (wrong, fg red), (unfilled, fg brightBlack)]
+      appAttrMap = const $ attrMap mempty [(standard, fg white), (corr, fgcolor), (wrong, fg red), (unfilled, fg brightBlack)]
     }
 
 --draws either the typing test or the results depending on state
@@ -203,10 +204,13 @@ borderWLabel label content = borderWithLabel (str label) . content
 
 --resets the state of the test
 rebuildInitialState :: TestState -> IO TestState
-rebuildInitialState s = buildInitialState (dimensions s) (args s) 200
+rebuildInitialState s = buildInitialState (dimensions s) (args s) (numComWords s)
 
 --zipWith that extends the shorter String with the given char
 zipWithPad :: Char -> String -> String -> [(Char, Char)]
 zipWithPad c (x : xs) (y : ys) = (x, y) : zipWithPad c xs ys
 zipWithPad c [] ys             = zip (repeat c) ys
 zipWithPad c xs []             = zip xs (repeat c)
+
+uncurry3                 :: (a -> b -> c -> d) -> ((a, b, c) -> d)
+uncurry3 f (a, b, c)     =  f a b c

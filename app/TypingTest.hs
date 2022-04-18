@@ -48,12 +48,13 @@ import           System.Random               (newStdGen)
 import           System.Random.Shuffle       (shuffle')
 
 data TestState = TestState
-  { text       :: NonEmptyCursor TestWord,
-    tevents    :: [TestEvent],
-    done       :: Bool,
-    dimensions :: (Int, Int),
-    time_left  :: Int,
-    args       :: Arguments
+  { text        :: NonEmptyCursor TestWord,
+    tevents     :: [TestEvent],
+    done        :: Bool,
+    numComWords :: Int,
+    dimensions  :: (Int, Int),
+    time_left   :: Int,
+    args        :: Arguments
   }
 
 data Arguments = Arguments
@@ -95,7 +96,7 @@ buildInitialState dim args most_common = do
     Quote  -> getRandomQuote textfile
     Random -> getRandomWords textfile most_common (numwords args)
     Timed  -> getRandomWords textfile most_common most_common
-  toTestState dim args test_words
+  toTestState most_common dim args test_words
 
 {-stat functions -}
 
@@ -275,11 +276,11 @@ addTestEvent b c s = do
 toTestWord :: String -> TestWord
 toTestWord s = TestWord {word = s, input = ""}
 
-toTestState :: (Int, Int) -> Arguments -> [TestWord] -> IO TestState
-toTestState dim args twords =
+toTestState :: Int -> (Int, Int) -> Arguments -> [TestWord] -> IO TestState
+toTestState ncwords dim args twords =
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
-    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], dimensions = dim, done = False, args = args, time_left = time args}
+    Just txt -> pure TestState {text = makeNonEmptyCursor txt, tevents = [], dimensions = dim, done = False, args = args, time_left = time args, numComWords = ncwords}
 
 --shuffles most_common amount of words from a file and returns num_words of them
 getRandomWords :: FilePath -> Int -> Int -> IO [TestWord]
