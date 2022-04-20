@@ -2,7 +2,7 @@
 
 htyper is a typing test for terminals written in Haskell using Brick.
 
-![recording](resources/htyper.gif)
+![recording](resources/htypervid.m4v)
 
 # Installation
 
