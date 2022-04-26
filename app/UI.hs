@@ -29,6 +29,7 @@ import           Graphics.Vty.Input.Events
 import           Prelude                      hiding (concat)
 import           System.Console.Terminal.Size (Window (height, width), size)
 import           TypingTest
+import           Paths_htyper                 (getDataFileName)
 
 ui :: Conf -> Arguments -> IO ()
 ui conf args = do

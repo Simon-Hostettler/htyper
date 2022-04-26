@@ -21,6 +21,7 @@ extra-source-files:
 data-files:
     1000us.txt
     quotes.txt
+    results.txt
 data-dir:       textfiles
 
 source-repository head

@@ -36,7 +36,7 @@ import           Config
 import           Control.Monad.IO.Class      (MonadIO (liftIO))
 import           Cursor.Simple.List.NonEmpty
 import           Data.Char                   (toLower)
-import           Data.List                   (isPrefixOf)
+import           Data.List                   (isPrefixOf, intercalate)
 import qualified Data.List.NonEmpty          as NE
 import           Data.List.Split             (chunksOf, splitOn)
 import           Data.Text                   (Text)
@@ -163,7 +163,9 @@ handleTextInput s c =
   case c of
     ' ' -> do
       case nonEmptyCursorSelectNext cursor of
-        Nothing -> continue $ s {done = True}
+        Nothing -> do
+          liftIO (saveRes s)
+          continue $ s {done = True}
         Just cursor' -> liftIO (addTestEvent True ' ' (s {text = cursor'})) >>= continue
     _ -> do
       let new_word = TestWord {word = word cur_word, input = input cur_word ++ [c]}
@@ -316,6 +318,18 @@ getRandomQuote file = do
 {- returns the quote file or the most common words file, depending on the mode of the test -}
 getTextFile :: Mode -> IO FilePath
 getTextFile mode = if mode == Quote then getDataFileName "quotes.txt" else getDataFileName "1000us.txt"
+
+{- saves the the results of the test to textfiles/results.txt for later evaluation-}
+saveRes :: TestState -> IO ()
+saveRes s = do
+  let wpm = show (getWPM s)
+  let rawwpm = show (getRawWPM s)
+  let acc = show (getAccuracy s)
+  let cons = show (getConsistency s)
+  let str = intercalate "," [wpm, rawwpm, acc, cons] ++ "\n"
+  file <- getDataFileName "results.txt"
+  appendFile file str
+  print "Saved Results"
 
 {- Math functions -}
 

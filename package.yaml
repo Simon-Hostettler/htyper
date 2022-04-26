@@ -40,6 +40,7 @@ data-dir: textfiles
 data-files:
   - 1000us.txt
   - quotes.txt
+  - results.txt
 
 executables:
   htyper:
