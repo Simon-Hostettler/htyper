@@ -329,7 +329,6 @@ saveRes s = do
   let str = intercalate "," [wpm, rawwpm, acc, cons] ++ "\n"
   file <- getDataFileName "results.txt"
   appendFile file str
-  print "Saved Results"
 
 {- Math functions -}
 
