@@ -10,7 +10,7 @@ import           Brick.Types
 import           Brick.Util                   (fg)
 import           Brick.Widgets.Border         (borderWithLabel)
 import           Brick.Widgets.Center         (hCenter, vCenter)
-import           Brick.Widgets.Core
+import           Brick.Widgets.Core           hiding (raw)
 import           Config
 import           Control.Concurrent           (forkIO, threadDelay)
 import           Control.Monad                (forever)
@@ -18,6 +18,7 @@ import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Data.Bifunctor               (bimap)
 import           Data.Function                (on)
 import           Data.List                    (sortBy)
+import           Data.List.Split              (splitOn)
 import           Data.Text                    (pack)
 import           Formatting                   (fixed, sformat, stext, (%))
 import           Graphics.Vty                 (Attr, Vty (update), defAttr,
@@ -26,10 +27,10 @@ import           Graphics.Vty                 (Attr, Vty (update), defAttr,
                                                withForeColor)
 import           Graphics.Vty.Attributes      (brightBlack, magenta, red, white)
 import           Graphics.Vty.Input.Events
+import           Paths_htyper                 (getDataFileName)
 import           Prelude                      hiding (concat)
 import           System.Console.Terminal.Size (Window (height, width), size)
 import           TypingTest
-import           Paths_htyper                 (getDataFileName)
 
 ui :: Conf -> Arguments -> IO ()
 ui conf args = do
@@ -60,6 +61,13 @@ ui conf args = do
     attrName "wrong",
     attrName "unfilled"
   )
+
+data TestRes = TestRes
+  { wpm  :: Double,
+    raw  :: Double,
+    acc  :: Double,
+    cons :: Double
+  }
 
 data Tick = Tick
 
@@ -137,6 +145,33 @@ drawTestScreen s =
   where
     curLoc = getCursorLoc s
 
+drawHistoryScreen :: [TestRes] -> Widget Name
+drawHistoryScreen res = do
+  vBox
+    [borderWLabel "average results"
+      drawRes avg,
+     borderWLabel "best results" vBox $
+        str "wpm\traw\taccuracy\tconsistency\t" :
+          map drawRes
+            (take 10 sorted) ]
+      where
+        avg = avgRes res
+        sorted = sortRes res
+
+drawRes :: TestRes -> Widget Name
+drawRes r = do
+  hBox $
+    map
+      txt
+        [ sformat ("wpm: " % fixed 2) (wpm r),
+          "\n",
+          sformat ("raw wpm: " % fixed 2) (raw r),
+          "\n",
+          sformat ("accuracy: " % fixed 2 % "%") (acc r),
+          "\n",
+          sformat ("consistency: " % fixed 2 % "%") (cons r)
+        ]
+
 drawWpmFunc :: (Int, Int) -> TestState -> Widget n
 drawWpmFunc (cols, rows) s = do
   vBox $
@@ -203,6 +238,26 @@ vhCenter = vCenter . hCenter
 
 borderWLabel :: String -> (a -> Widget n) -> a -> Widget n
 borderWLabel label content = borderWithLabel (str label) . content
+
+{- returns list of testresults saved in results.txt -}
+parseRes :: IO [TestRes]
+parseRes = do
+  file <- getDataFileName "results.txt"
+  content <- readFile file
+  let lines = splitOn "\n" content
+  return (map (toRes . splitOn ",") lines)
+    where
+      toRes [a, b, c , d] = TestRes {wpm = read a, raw = read b, acc = read c, cons = read d}
+      toRes _             = TestRes {wpm = 0, raw = 0, acc = 0, cons = 0}
+
+avgRes :: [TestRes] -> TestRes
+avgRes l = do
+  let len = fromIntegral (length l)
+  let [awpm, araw , aacc, acons] = map ((/ len) . sum) [map wpm l, map raw l, map acc l, map cons l]
+  TestRes {wpm = awpm, raw = araw, acc = aacc, cons = acons}
+
+sortRes :: [TestRes] -> [TestRes]
+sortRes = sortBy (flip compare `on` wpm)
 
 {- resets the state of the test -}
 rebuildInitialState :: TestState -> IO TestState

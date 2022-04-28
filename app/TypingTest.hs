@@ -36,7 +36,7 @@ import           Config
 import           Control.Monad.IO.Class      (MonadIO (liftIO))
 import           Cursor.Simple.List.NonEmpty
 import           Data.Char                   (toLower)
-import           Data.List                   (isPrefixOf, intercalate)
+import           Data.List                   (intercalate, isPrefixOf)
 import qualified Data.List.NonEmpty          as NE
 import           Data.List.Split             (chunksOf, splitOn)
 import           Data.Text                   (Text)
