@@ -4,6 +4,7 @@ module TypingTest
   ( {- data -}
     TestState (..),
     TestWord (..),
+    TestRes (..),
     Arguments (..),
     Mode (..),
     CharErrorRate (..),
@@ -25,6 +26,9 @@ module TypingTest
     getCursorLoc,
     getActiveCharLoc,
     getActiveLineLoc,
+    {- result functions -}
+    avgRes,
+    sortRes,
     {- other -}
     getActiveLines,
   )
@@ -33,10 +37,14 @@ where
 import           Brick.Main                  (continue)
 import           Brick.Types                 (EventM, Next)
 import           Config
+import           Control.Monad               ((<$!>))
 import           Control.Monad.IO.Class      (MonadIO (liftIO))
 import           Cursor.Simple.List.NonEmpty
-import           Data.Char                   (toLower)
-import           Data.List                   (intercalate, isPrefixOf)
+import qualified Data.ByteString             as BS
+import qualified Data.ByteString.UTF8        as BSU
+import           Data.Char                   (isSpace, toLower)
+import           Data.Function               (on)
+import           Data.List                   (intercalate, isPrefixOf, sortBy)
 import qualified Data.List.NonEmpty          as NE
 import           Data.List.Split             (chunksOf, splitOn)
 import           Data.Text                   (Text)
@@ -51,11 +59,12 @@ import           System.Random.Shuffle       (shuffle')
 data TestState = TestState
   { text       :: NonEmptyCursor TestWord,
     tevents    :: [TestEvent],
-    done       :: Bool,
+    screen     :: Int, {- 0 = test, 1 = result, 2 = history -}
     dimensions :: (Int, Int),
     time_left  :: Int,
     config     :: Conf,
-    args       :: Arguments
+    args       :: Arguments,
+    results    :: [TestRes]
   }
 
 data Arguments = Arguments
@@ -78,6 +87,13 @@ data TestEvent = TestEvent
     input_char :: Char
   }
   deriving (Eq)
+
+data TestRes = TestRes
+  { wpm  :: Double,
+    raw  :: Double,
+    acc  :: Double,
+    cons :: Double
+  }
 
 data CharErrorRate = CharErrorRate
   { char      :: Char,
@@ -165,7 +181,7 @@ handleTextInput s c =
       case nonEmptyCursorSelectNext cursor of
         Nothing -> do
           liftIO (saveRes s)
-          continue $ s {done = True}
+          continue $ s {screen = 1}
         Just cursor' -> liftIO (addTestEvent True ' ' (s {text = cursor'})) >>= continue
     _ -> do
       let new_word = TestWord {word = word cur_word, input = input cur_word ++ [c]}
@@ -284,17 +300,19 @@ toTestWord :: String -> TestWord
 toTestWord s = TestWord {word = s, input = ""}
 
 toTestState :: (Int, Int) -> Conf -> Arguments -> [TestWord] -> IO TestState
-toTestState dim conf args twords =
+toTestState dim conf args twords = do
+  pastResults <- parseRes
   case NE.nonEmpty twords of
     Nothing -> die "No Words to display"
     Just txt -> pure TestState {
       text = makeNonEmptyCursor txt,
       tevents = [],
       dimensions = dim,
-      done = False,
+      screen = 0,
       args = args,
       time_left = time args,
-      config = conf
+      config = conf,
+      results = pastResults
     }
 
 {- shuffles most_common amount of words from a file and returns num_words of them -}
@@ -319,6 +337,8 @@ getRandomQuote file = do
 getTextFile :: Mode -> IO FilePath
 getTextFile mode = if mode == Quote then getDataFileName "quotes.txt" else getDataFileName "1000us.txt"
 
+{- Result saving and reading functions -}
+
 {- saves the the results of the test to textfiles/results.txt for later evaluation-}
 saveRes :: TestState -> IO ()
 saveRes s = do
@@ -328,7 +348,27 @@ saveRes s = do
   let cons = show (getConsistency s)
   let str = intercalate "," [wpm, rawwpm, acc, cons] ++ "\n"
   file <- getDataFileName "results.txt"
-  appendFile file str
+  BS.appendFile file (BSU.fromString str)
+
+{- returns list of testresults saved in results.txt -}
+parseRes :: IO [TestRes]
+parseRes = do
+  file <- getDataFileName "results.txt"
+  content <- BSU.toString <$!> BS.readFile file
+  let lines = filter (not . (all isSpace)) (splitOn "\n" content)
+  return (map (toRes . splitOn ",") lines)
+    where
+      toRes [a, b, c , d] = TestRes {wpm = read a, raw = read b, acc = read c, cons = read d}
+      toRes _             = TestRes {wpm = 0, raw = 0, acc = 0, cons = 0}
+
+avgRes :: [TestRes] -> TestRes
+avgRes l = do
+  let len = fromIntegral (length l)
+  let [awpm, araw , aacc, acons] = map ((/ len) . sum) [map wpm l, map raw l, map acc l, map cons l]
+  TestRes {wpm = awpm, raw = araw, acc = aacc, cons = acons}
+
+sortRes :: [TestRes] -> [TestRes]
+sortRes = sortBy (flip compare `on` wpm)
 
 {- Math functions -}
 

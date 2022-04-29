@@ -33,6 +33,8 @@ dependencies:
   - terminal-size
   - formatting
   - text
+  - bytestring
+  - utf8-string
 library:
   source-dirs: src
 

@@ -51,7 +51,7 @@ ui conf args = do
   {- ↑ will be removed if Vty implements changing the cursor shape-}
   initialState <- buildInitialState dim conf args
   let fgcolor = uncurry3 rgbColor (fgColor conf)
-  _ <- customMain initialVty buildVty (Just chan) (htyper (fg fgcolor)) initialState
+  endState <- customMain initialVty buildVty (Just chan) (htyper (fg fgcolor)) initialState
   return ()
 
 {-constant Attribute names-}
@@ -62,12 +62,7 @@ ui conf args = do
     attrName "unfilled"
   )
 
-data TestRes = TestRes
-  { wpm  :: Double,
-    raw  :: Double,
-    acc  :: Double,
-    cons :: Double
-  }
+
 
 data Tick = Tick
 
@@ -85,7 +80,10 @@ htyper fgcolor =
 
 {- draws either the typing test or the results depending on state -}
 drawUI :: TestState -> [Widget Name]
-drawUI s = if done s then drawResultScreen s else drawTestScreen s
+drawUI s = case screen s of
+             0 -> drawTestScreen s
+             1 -> drawResultScreen s
+             2 -> drawHistoryScreen (results s)
 
 getWindowSize :: IO (Int, Int)
 getWindowSize = do
@@ -105,7 +103,7 @@ drawResultScreen s =
               ],
         borderWLabel " wpm over time " vhCenter $
           drawWpmFunc (fst (dimensions s) - 7, round (0.6 * fromIntegral (snd (dimensions s))) - 5) s,
-        hCenter $ str "quit: CTRL-q, restart: CTRL-r"
+        hCenter $ str "quit: CTRL-q, restart: CTRL-r, history: CTRL-g"
       ]
   ]
 
@@ -145,22 +143,25 @@ drawTestScreen s =
   where
     curLoc = getCursorLoc s
 
-drawHistoryScreen :: [TestRes] -> Widget Name
-drawHistoryScreen res = do
-  vBox
-    [borderWLabel "average results"
-      drawRes avg,
-     borderWLabel "best results" vBox $
-        str "wpm\traw\taccuracy\tconsistency\t" :
-          map drawRes
-            (take 10 sorted) ]
-      where
-        avg = avgRes res
-        sorted = sortRes res
+drawHistoryScreen :: [TestRes] -> [Widget Name]
+drawHistoryScreen res =
+  [borderWLabel " history " vhCenter $
+    (case res of
+      [] -> vhCenter (str "Nothing to display")
+      (x:xs) -> vBox $
+        [borderWLabel " average results " (vLimitPercent 40) $ vhCenter $
+          vBox $ drawRes avg,
+        borderWLabel " best results " vhCenter $ vBox $
+          hBox (map (hCenter . str) ["wpm", "raw", "acc", "cons"]) :
+            map (hBox . map hCenter . drawResNoPre)
+              (take 10 sorted),
+        hCenter $ str "quit: CTRL-q, restart: CTRL-r, history: CTRL-g"])]
+    where
+      avg = avgRes res
+      sorted = sortRes res
 
-drawRes :: TestRes -> Widget Name
-drawRes r = do
-  hBox $
+drawRes :: TestRes -> [Widget Name]
+drawRes r =
     map
       txt
         [ sformat ("wpm: " % fixed 2) (wpm r),
@@ -170,6 +171,16 @@ drawRes r = do
           sformat ("accuracy: " % fixed 2 % "%") (acc r),
           "\n",
           sformat ("consistency: " % fixed 2 % "%") (cons r)
+        ]
+
+drawResNoPre :: TestRes -> [Widget Name]
+drawResNoPre r =
+    map
+      txt
+        [ sformat (fixed 2) (wpm r),
+          sformat (fixed 2) (raw r),
+          sformat (fixed 2 % "%") (acc r),
+          sformat (fixed 2 % "%") (cons r)
         ]
 
 drawWpmFunc :: (Int, Int) -> TestState -> Widget n
@@ -213,22 +224,23 @@ drawChar (c1, c2)
   | c1 /= c2 = withAttr wrong (str [c2])
   | otherwise = str [' ']
 
-{- Ctrl-q exits htyper, Ctrl-r reloads htyper, any other input is handled by the test -}
+{- Ctrl-q exits htyper, Ctrl-r reloads htyper, Ctrl-g show test history, any other input is handled by the test -}
 handleInputEvent :: TestState -> BrickEvent Name Tick -> EventM n (Next TestState)
 handleInputEvent s i =
   case i of
     VtyEvent vtye ->
       case vtye of
-        EvKey KBS [] -> if not (done s) then handleBackSpaceInput s else continue s
+        EvKey KBS [] -> if screen s == 0 then handleBackSpaceInput s else continue s
         EvKey (KChar 'q') [MCtrl] -> halt s
         EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
-        EvKey (KChar c) [] -> if not (done s) then handleTextInput s c else continue s
+        EvKey (KChar 'g') [MCtrl] -> continue $ s {screen = 2}
+        EvKey (KChar c) [] -> if screen s == 0 then handleTextInput s c else continue s
         _ -> continue s
     AppEvent Tick -> do
       dim <- liftIO getWindowSize
       if mode (args s) == Timed
         then case time_left s - 1 of
-          0 -> continue (s {time_left = 0, done = True, dimensions = dim})
+          0 -> continue (s {time_left = 0, screen = 1, dimensions = dim})
           x -> continue (s {time_left = x, dimensions = dim})
         else continue (s {dimensions = dim})
     _ -> continue s
@@ -239,25 +251,6 @@ vhCenter = vCenter . hCenter
 borderWLabel :: String -> (a -> Widget n) -> a -> Widget n
 borderWLabel label content = borderWithLabel (str label) . content
 
-{- returns list of testresults saved in results.txt -}
-parseRes :: IO [TestRes]
-parseRes = do
-  file <- getDataFileName "results.txt"
-  content <- readFile file
-  let lines = splitOn "\n" content
-  return (map (toRes . splitOn ",") lines)
-    where
-      toRes [a, b, c , d] = TestRes {wpm = read a, raw = read b, acc = read c, cons = read d}
-      toRes _             = TestRes {wpm = 0, raw = 0, acc = 0, cons = 0}
-
-avgRes :: [TestRes] -> TestRes
-avgRes l = do
-  let len = fromIntegral (length l)
-  let [awpm, araw , aacc, acons] = map ((/ len) . sum) [map wpm l, map raw l, map acc l, map cons l]
-  TestRes {wpm = awpm, raw = araw, acc = aacc, cons = acons}
-
-sortRes :: [TestRes] -> [TestRes]
-sortRes = sortBy (flip compare `on` wpm)
 
 {- resets the state of the test -}
 rebuildInitialState :: TestState -> IO TestState
