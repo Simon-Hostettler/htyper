@@ -17,7 +17,7 @@ import           Control.Monad                (forever)
 import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Data.Bifunctor               (bimap)
 import           Data.Function                (on)
-import           Data.List                    (sortBy)
+import           Data.List                    (sortBy, transpose)
 import           Data.List.Split              (splitOn)
 import           Data.Text                    (pack)
 import           Formatting                   (fixed, sformat, stext, (%))
@@ -149,12 +149,11 @@ drawHistoryScreen res =
     (case res of
       [] -> vhCenter (str "Nothing to display")
       (x:xs) -> vBox $
-        [borderWLabel " average results " (vLimitPercent 40) $ vhCenter $
+        [borderWLabel " average result " (vLimitPercent 40) $ vhCenter $
           vBox $ drawRes avg,
-        borderWLabel " best results " vhCenter $ vBox $
-          hBox (map (hCenter . str) ["wpm", "raw", "acc", "cons"]) :
-            map (hBox . map hCenter . drawResNoPre)
-              (take 10 sorted),
+        borderWLabel " best results " vhCenter $
+          hBox $ map (hCenter . vBox) (transpose (map str ["wpm", "raw", "acc", "cons"] :
+            (map str ["\n","\n","\n","\n"] : map drawResNoPre (take 10 sorted)))),
         hCenter $ str "quit: CTRL-q, restart: CTRL-r, history: CTRL-g"])]
     where
       avg = avgRes res
