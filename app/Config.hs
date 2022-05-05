@@ -44,7 +44,7 @@ readConfig = do
     conf <- readFile fp
 
     let lines = splitOn "\n" conf
-    let fC = hexToRgb (fst (head (readHex (getSettingByName lines "fgcolor" "88d0c0"))))
+    let fC = hexToRgb (fst (head (readHex (getSettingByName lines "fgcolor" "ff9d00"))))
     let cS = read (getSettingByName lines "cursorshape" "5")
     let nC = read (getSettingByName lines "numcommonwords" "250")
 
