@@ -21,7 +21,6 @@ extra-source-files:
 data-files:
     1000us.txt
     quotes.txt
-    results.txt
 data-dir:       textfiles
 
 source-repository head
@@ -62,7 +61,7 @@ executable htyper
       Paths_htyper
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
     , brick

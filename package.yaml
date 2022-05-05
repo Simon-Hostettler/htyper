@@ -42,7 +42,6 @@ data-dir: textfiles
 data-files:
   - 1000us.txt
   - quotes.txt
-  - results.txt
 
 executables:
   htyper:
@@ -52,6 +51,7 @@ executables:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+      - -O2
     dependencies:
       - htyper
 
