@@ -29,7 +29,7 @@ createDefaultConfig = do
     home <- getHomeDirectory
     _ <- createDirectoryIfMissing True (home ++ "/.config/htyper")
 
-    let text = "fgcolor = ff79c6\ncursorshape = 5\nnumcommonwords = 250"
+    let text = "fgcolor = ff9d00\ncursorshape = 5\nnumcommonwords = 250"
     writeFile (home ++ "/.config/htyper/htyper.conf") text
 
 {- Creates Conf from settings found in ~/.config/htyper/htyper.conf, if file doesn't exist
