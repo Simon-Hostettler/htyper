@@ -15,6 +15,14 @@ data Conf = Conf
         numCommonWords :: Int
     }
 
+
+createResFile :: IO ()
+createResFile = do
+    home <- getHomeDirectory
+    let resfile = home ++ "/.config/htyper/results.txt"
+    fileExists <- doesFileExist resfile
+    unless fileExists (writeFile resfile "")
+
 {- Creates and initializes default config in ~/.config/htyper/htyper.conf -}
 createDefaultConfig :: IO ()
 createDefaultConfig = do
@@ -32,6 +40,7 @@ readConfig = do
     let fp = home ++ "/.config/htyper/htyper.conf"
     confExists <- doesFileExist fp
     unless confExists createDefaultConfig
+    createResFile
     conf <- readFile fp
 
     let lines = splitOn "\n" conf
