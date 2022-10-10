@@ -29,7 +29,7 @@ createDefaultConfig = do
     home <- getHomeDirectory
     _ <- createDirectoryIfMissing True (home ++ "/.config/htyper")
 
-    let text = "fgcolor = ff9d00\ncursorshape = 5\nnumcommonwords = 250"
+    let text = "fgcolor = fc6f03\ncursorshape = 5\nnumcommonwords = 250"
     writeFile (home ++ "/.config/htyper/htyper.conf") text
 
 {- Creates Conf from settings found in ~/.config/htyper/htyper.conf, if file doesn't exist
@@ -44,7 +44,7 @@ readConfig = do
     conf <- readFile fp
 
     let lines = splitOn "\n" conf
-    let fC = hexToRgb (fst (head (readHex (getSettingByName lines "fgcolor" "ff9d00"))))
+    let fC = hexToRgb (fst (head (readHex (getSettingByName lines "fgcolor" "fc6f03"))))
     let cS = read (getSettingByName lines "cursorshape" "5")
     let nC = read (getSettingByName lines "numcommonwords" "250")
 
