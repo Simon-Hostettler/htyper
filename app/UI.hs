@@ -230,6 +230,7 @@ handleInputEvent s i =
     VtyEvent vtye ->
       case vtye of
         EvKey KBS [] -> if screen s == 0 then handleBackSpaceInput s else continue s
+        EvKey (KChar '\t') [] -> continue s
         EvKey (KChar 'q') [MCtrl] -> halt s
         EvKey (KChar 'r') [MCtrl] -> liftIO (rebuildInitialState s) >>= continue
         EvKey (KChar 'g') [MCtrl] -> continue $ s {screen = 2}
