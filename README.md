@@ -19,6 +19,11 @@ And install htyper:
 $ cd htyper
 $ stack install
 ```
+If you're on Apple Silicon and get a compilation error, try running:
+
+```
+C_INCLUDE_PATH="`xcrun --show-sdk-path`/usr/include/ffi" stack install htyper
+```
 
 This will create a copy of the executable in `~/.local/bin` . If you want to run htyper from any directory, you should add this to your `PATH`.
 This was only tested on Linux, I can't guarantee that installation on another OS will work.
