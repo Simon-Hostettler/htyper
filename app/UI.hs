@@ -20,7 +20,7 @@ import           Data.Function                (on)
 import           Data.List                    (sortBy, transpose)
 import           Data.List.Split              (splitOn)
 import           Data.Text                    (pack)
-import           Formatting                   (fixed, sformat, stext, (%))
+import           Formatting                   (fixed, int, sformat, stext, (%))
 import           Graphics.Vty                 (Attr, Vty (update), defAttr,
                                                defaultConfig, mkVty,
                                                picForImage, rgbColor, string,
@@ -149,7 +149,8 @@ drawHistoryScreen res =
     (case res of
       [] -> vhCenter (str "Nothing to display")
       (x:xs) -> vBox $
-        [borderWLabel " average result " (vLimitPercent 40) $ vhCenter $
+        [ vLimitPercent 10 $ vhCenter $ txt $ sformat ("tests taken: " % int) (length res),
+          borderWLabel " average result " (vLimitPercent 40) $ vhCenter $
           vBox $ drawRes avg,
         borderWLabel " best results " vhCenter $
           hBox $ map (hCenter . vBox) (transpose (map str ["wpm", "raw", "acc", "cons"] :
